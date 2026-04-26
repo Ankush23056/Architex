@@ -10,29 +10,29 @@ export function Toolbar({ currentTool, setCurrentTool, undo, redo, canUndo, canR
   ];
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-4 z-10">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-[10px] z-10">
       
       {/* UNDO BUTTON */}
-      <div className="panel-brutal border-b-4 !border-b-neon-green flex">
+      <div className="panel-brutal !p-1 border-b-4 !border-b-neon-green flex">
         <button 
-          className="btn-brutal flex flex-col items-center gap-0.5 px-3 py-2 min-w-[52px]" 
+          className="btn-brutal flex flex-col items-center justify-center gap-1 w-[52px] h-[52px] p-0" 
           onClick={undo} 
           disabled={!canUndo}
           style={{ opacity: canUndo ? 1 : 0.4, cursor: canUndo ? 'pointer' : 'not-allowed' }}
           title="Undo (Ctrl+Z)"
         >
-          <span className="text-base leading-none">↶</span>
-          <span className="text-[9px] uppercase tracking-widest opacity-70">Undo</span>
+          <span className="text-2xl leading-none text-neon-cyan mt-1">↶</span>
+          <span className="text-[10px] uppercase tracking-widest opacity-70 mb-1">Undo</span>
         </button>
       </div>
 
       {/* MAIN TOOLS */}
-      <div className="panel-brutal flex gap-1 border-b-4 !border-b-neon-green">
+      <div className="panel-brutal !p-1 flex gap-[6.5px] border-b-4 !border-b-neon-green">
         {tools.map((tool) => (
           <button
             key={tool.id}
             title={tool.label}
-            className={`btn-brutal flex flex-col items-center gap-0.5 px-3 py-2 min-w-[52px] ${currentTool === tool.id ? 'active' : ''}`}
+            className={`btn-brutal flex flex-col items-center justify-center gap-0.5 w-[52px] h-[52px] p-0 ${currentTool === tool.id ? 'active' : ''}`}
             onClick={() => setCurrentTool(tool.id)}
           >
             <span className="text-base leading-none">{tool.icon}</span>
@@ -42,16 +42,16 @@ export function Toolbar({ currentTool, setCurrentTool, undo, redo, canUndo, canR
       </div>
 
       {/* REDO BUTTON */}
-      <div className="panel-brutal border-b-4 !border-b-neon-green flex">
+      <div className="panel-brutal !p-1 border-b-4 !border-b-neon-green flex">
         <button 
-          className="btn-brutal flex flex-col items-center gap-0.5 px-3 py-2 min-w-[52px]" 
+          className="btn-brutal flex flex-col items-center justify-center gap-1 w-[52px] h-[52px] p-0" 
           onClick={redo} 
           disabled={!canRedo}
           style={{ opacity: canRedo ? 1 : 0.4, cursor: canRedo ? 'pointer' : 'not-allowed' }}
           title="Redo (Ctrl+Y)"
         >
-          <span className="text-base leading-none">↷</span>
-          <span className="text-[9px] uppercase tracking-widest opacity-70">Redo</span>
+          <span className="text-2xl leading-none text-neon-cyan mt-1">↷</span>
+          <span className="text-[10px] uppercase tracking-widest opacity-70 mb-1">Redo</span>
         </button>
       </div>
 
