@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { drawElement, isPointInElement } from '../utils/drawingUtils';
 
-export function useCanvas(elements, { addElement, updateElement }) {
+export function useCanvas(elements, { addElement, updateElement, broadcastCursor }) {
   const canvasRef = useRef(null);
   const [selectedId, setSelectedId] = useState(null);
   const [currentTool, setCurrentTool] = useState('select');
@@ -13,6 +13,7 @@ export function useCanvas(elements, { addElement, updateElement }) {
   const currentElement = useRef(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const startOffset = useRef({ x: 0, y: 0 });
+  const lastCursorSend = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -131,6 +132,13 @@ export function useCanvas(elements, { addElement, updateElement }) {
 
   const handlePointerMove = (e) => {
     const { x, y } = getMousePos(e);
+    
+    // Broadcast cursor at ~30fps to avoid flooding
+    const now = Date.now();
+    if (now - lastCursorSend.current > 33) {
+      if (broadcastCursor) broadcastCursor(x, y, currentColor);
+      lastCursorSend.current = now;
+    }
     
     if (currentTool === 'select' && isDragging.current && selectedId) {
       const dx = x - dragStartPos.current.x;

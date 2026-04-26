@@ -2,6 +2,7 @@ import { useReducer, useEffect, useRef, useState } from 'react';
 
 const initialState = {
   elements: [],
+  activeUsers: {},
 };
 
 function reducer(state, action) {
@@ -23,6 +24,19 @@ function reducer(state, action) {
         ...state,
         elements: state.elements.filter((el) => el.id !== action.payload.id),
       };
+    case 'UPDATE_CURSOR':
+      return {
+        ...state,
+        activeUsers: {
+          ...state.activeUsers,
+          [action.payload.clientId]: action.payload.cursor
+        }
+      };
+    case 'REMOVE_USER': {
+      const newUsers = { ...state.activeUsers };
+      delete newUsers[action.payload.clientId];
+      return { ...state, activeUsers: newUsers };
+    }
     default:
       return state;
   }
@@ -49,6 +63,10 @@ export function useWhiteboardState() {
           dispatch({ type: 'UPDATE_ELEMENT', payload: msg.payload });
         } else if (msg.type === 'ELEMENT_DELETE') {
           dispatch({ type: 'DELETE_ELEMENT', payload: msg.payload });
+        } else if (msg.type === 'CURSOR_UPDATE') {
+          dispatch({ type: 'UPDATE_CURSOR', payload: { clientId: msg.clientId, cursor: msg.payload } });
+        } else if (msg.type === 'USER_DISCONNECT') {
+          dispatch({ type: 'REMOVE_USER', payload: { clientId: msg.clientId } });
         }
       } catch (e) {
         console.error('Failed to parse WS message', e);
@@ -66,6 +84,10 @@ export function useWhiteboardState() {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type, payload }));
     }
+  };
+
+  const broadcastCursor = (x, y, color) => {
+    broadcast('CURSOR_UPDATE', { x, y, color });
   };
 
   const addElement = (element) => {
@@ -99,11 +121,13 @@ export function useWhiteboardState() {
 
   return {
     elements: state.elements,
+    activeUsers: state.activeUsers,
     connected,
     addElement,
     updateElement,
     deleteElement,
     bringToFront,
     sendToBack,
+    broadcastCursor,
   };
 }
