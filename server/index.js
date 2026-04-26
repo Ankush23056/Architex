@@ -80,6 +80,14 @@ wss.on('connection', (ws) => {
         );
         stateChanged = true;
         break;
+      case 'ELEMENTS_UPDATE_BULK': {
+        const updateMap = new Map(payload.map(el => [el.id, el]));
+        canvasState.elements = canvasState.elements.map(el => 
+          updateMap.has(el.id) ? { ...el, ...updateMap.get(el.id) } : el
+        );
+        stateChanged = true;
+        break;
+      }
       case 'ELEMENT_DELETE':
         canvasState.elements = canvasState.elements.filter((el) => el.id !== payload.id);
         stateChanged = true;

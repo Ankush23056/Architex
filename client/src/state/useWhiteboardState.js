@@ -19,6 +19,15 @@ function reducer(state, action) {
           el.id === action.payload.id ? { ...el, ...action.payload } : el
         ),
       };
+    case 'UPDATE_ELEMENTS_BULK': {
+      const updateMap = new Map(action.payload.map(el => [el.id, el]));
+      return {
+        ...state,
+        elements: state.elements.map(el =>
+          updateMap.has(el.id) ? { ...el, ...updateMap.get(el.id) } : el
+        ),
+      };
+    }
     case 'DELETE_ELEMENT':
       return {
         ...state,
@@ -61,6 +70,8 @@ export function useWhiteboardState() {
           dispatch({ type: 'ADD_ELEMENT', payload: msg.payload });
         } else if (msg.type === 'ELEMENT_UPDATE') {
           dispatch({ type: 'UPDATE_ELEMENT', payload: msg.payload });
+        } else if (msg.type === 'ELEMENTS_UPDATE_BULK') {
+          dispatch({ type: 'UPDATE_ELEMENTS_BULK', payload: msg.payload });
         } else if (msg.type === 'ELEMENT_DELETE') {
           dispatch({ type: 'DELETE_ELEMENT', payload: msg.payload });
         } else if (msg.type === 'CURSOR_UPDATE') {
@@ -100,6 +111,11 @@ export function useWhiteboardState() {
     broadcast('ELEMENT_UPDATE', element);
   };
 
+  const updateElementsBulk = (elementsArray) => {
+    dispatch({ type: 'UPDATE_ELEMENTS_BULK', payload: elementsArray });
+    broadcast('ELEMENTS_UPDATE_BULK', elementsArray);
+  };
+
   const deleteElement = (id) => {
     dispatch({ type: 'DELETE_ELEMENT', payload: { id } });
     broadcast('ELEMENT_DELETE', { id });
@@ -125,6 +141,7 @@ export function useWhiteboardState() {
     connected,
     addElement,
     updateElement,
+    updateElementsBulk,
     deleteElement,
     bringToFront,
     sendToBack,
