@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { drawElement, drawCurveHandle, isPointInElement, isPointNearCurveHandle } from '../utils/drawingUtils';
 
-export function useCanvas(elements, { addElement, updateElement, broadcastCursor }) {
+export function useCanvas(elements, { addElement, updateElement, broadcastCursor, saveHistory }) {
   const canvasRef = useRef(null);
   const [selectedId, setSelectedId] = useState(null);
   const [currentTool, setCurrentTool] = useState('select');
@@ -15,6 +15,7 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
   const dragStartPos = useRef({ x: 0, y: 0 });
   const startOffset = useRef({ x: 0, y: 0 });
   const lastCursorSend = useRef(0);
+  const elementsSnapshot = useRef(null);
 
   // ── Render loop ──────────────────────────────────────────────
   useEffect(() => {
@@ -91,6 +92,7 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
   // ── Pointer Down ─────────────────────────────────────────────
   const handlePointerDown = (e) => {
     const { x, y } = getMousePos(e);
+    elementsSnapshot.current = elements; // Capture state before any modification
     
     if (currentTool === 'select') {
       const sortedElements = [...elements].sort((a, b) => b.zIndex - a.zIndex);
@@ -193,6 +195,7 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
   // ── Pointer Up ───────────────────────────────────────────────
   const handlePointerUp = () => {
     if (isDraggingHandle.current) {
+      if (saveHistory) saveHistory(elementsSnapshot.current);
       isDraggingHandle.current = false;
       return;
     }
@@ -200,6 +203,7 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
     if (isDrawing.current && currentElement.current) {
       const el = currentElement.current;
       if (Math.abs(el.width) > 5 || Math.abs(el.height) > 5 || el.type === 'text') {
+        if (saveHistory) saveHistory(elementsSnapshot.current);
         // For curves, set an initial arched control point
         const finalEl = el.type === 'curve'
           ? {
@@ -216,6 +220,7 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
       isDrawing.current = false;
       currentElement.current = null;
     } else if (isDragging.current) {
+      if (saveHistory) saveHistory(elementsSnapshot.current);
       isDragging.current = false;
     }
   };

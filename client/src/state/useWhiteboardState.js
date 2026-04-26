@@ -3,6 +3,8 @@ import { useReducer, useEffect, useRef, useState } from 'react';
 const initialState = {
   elements: [],
   activeUsers: {},
+  past: [],
+  future: [],
 };
 
 function reducer(state, action) {
@@ -45,6 +47,25 @@ function reducer(state, action) {
       const newUsers = { ...state.activeUsers };
       delete newUsers[action.payload.clientId];
       return { ...state, activeUsers: newUsers };
+    }
+    case 'SAVE_HISTORY': {
+      const snapshot = action.payload; // Deep copy
+      const newPast = [...state.past, JSON.parse(JSON.stringify(snapshot))].slice(-50);
+      return { ...state, past: newPast, future: [] };
+    }
+    case 'UNDO': {
+      if (state.past.length === 0) return state;
+      const previous = state.past[state.past.length - 1];
+      const newPast = state.past.slice(0, -1);
+      const newFuture = [JSON.parse(JSON.stringify(state.elements)), ...state.future];
+      return { ...state, elements: previous, past: newPast, future: newFuture };
+    }
+    case 'REDO': {
+      if (state.future.length === 0) return state;
+      const next = state.future[0];
+      const newFuture = state.future.slice(1);
+      const newPast = [...state.past, JSON.parse(JSON.stringify(state.elements))];
+      return { ...state, elements: next, past: newPast, future: newFuture };
     }
     default:
       return state;
@@ -135,6 +156,24 @@ export function useWhiteboardState() {
     updateElement({ ...element, zIndex: minZIndex - 1 });
   };
 
+  const saveHistory = (snapshot) => {
+    dispatch({ type: 'SAVE_HISTORY', payload: snapshot || state.elements });
+  };
+
+  const undo = () => {
+    if (state.past.length === 0) return;
+    const previous = state.past[state.past.length - 1];
+    dispatch({ type: 'UNDO' });
+    broadcast('CANVAS_SYNC', { elements: previous });
+  };
+
+  const redo = () => {
+    if (state.future.length === 0) return;
+    const next = state.future[0];
+    dispatch({ type: 'REDO' });
+    broadcast('CANVAS_SYNC', { elements: next });
+  };
+
   return {
     elements: state.elements,
     activeUsers: state.activeUsers,
@@ -146,5 +185,10 @@ export function useWhiteboardState() {
     bringToFront,
     sendToBack,
     broadcastCursor,
+    saveHistory,
+    undo,
+    redo,
+    canUndo: state.past.length > 0,
+    canRedo: state.future.length > 0,
   };
 }

@@ -8,19 +8,25 @@ import { cleanupMess } from './utils/cleanupUtils';
 
 function App() {
   const stateActions = useWhiteboardState();
-  const { elements, connected, updateElement, updateElementsBulk, deleteElement, bringToFront, sendToBack } = stateActions;
+  const { elements, connected, updateElement, updateElementsBulk, deleteElement, bringToFront, sendToBack, saveHistory, undo, redo, canUndo, canRedo } = stateActions;
   
   const [canvasApi, setCanvasApi] = useState(null);
   const [showPanel, setShowPanel] = useState(true);
 
-  // H key toggles Properties Panel
+  // H key toggles Properties Panel, Ctrl+Z/Y for Undo/Redo
   const handleKeyDown = useCallback((e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
     if (e.key === 'h' || e.key === 'H') {
-      if (e.target.tagName !== 'INPUT') {
-        setShowPanel(v => !v);
-      }
+      setShowPanel(v => !v);
+    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      undo();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+      e.preventDefault();
+      redo();
     }
-  }, []);
+  }, [undo, redo]);
 
   // Register H key globally
   useEffect(() => {
@@ -44,6 +50,10 @@ function App() {
         <Toolbar 
           currentTool={canvasApi.currentTool} 
           setCurrentTool={canvasApi.setCurrentTool} 
+          undo={undo}
+          redo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
         />
       )}
 
@@ -51,9 +61,16 @@ function App() {
         visible={showPanel}
         selectedElement={selectedElement}
         updateElement={updateElement}
-        bringToFront={bringToFront}
-        sendToBack={sendToBack}
+        bringToFront={(id) => {
+          saveHistory(elements);
+          bringToFront(id);
+        }}
+        sendToBack={(id) => {
+          saveHistory(elements);
+          sendToBack(id);
+        }}
         deleteElement={(id) => {
+          saveHistory(elements);
           deleteElement(id);
           canvasApi?.setSelectedId(null);
         }}
@@ -75,6 +92,7 @@ function App() {
         title="Mess Clean-up: Grid Snap, Align, Space"
         onClick={() => {
           if (elements.length > 0) {
+            saveHistory(elements);
             const cleaned = cleanupMess(elements);
             updateElementsBulk(cleaned);
           }

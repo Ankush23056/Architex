@@ -96,6 +96,12 @@ wss.on('connection', (ws) => {
         canvasState.elements = [];
         stateChanged = true;
         break;
+      case 'CANVAS_SYNC':
+        if (payload && Array.isArray(payload.elements)) {
+          canvasState.elements = payload.elements;
+          stateChanged = true;
+        }
+        break;
       case 'CURSOR_UPDATE':
         // Cursor updates are ephemeral and not saved to Redis
         break;
