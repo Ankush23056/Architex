@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { drawElement, isPointInElement } from '../utils/drawingUtils';
+import { drawElement, drawCurveHandle, isPointInElement, isPointNearCurveHandle } from '../utils/drawingUtils';
 
 export function useCanvas(elements, { addElement, updateElement, broadcastCursor }) {
   const canvasRef = useRef(null);
@@ -10,11 +10,13 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
   
   const isDrawing = useRef(false);
   const isDragging = useRef(false);
+  const isDraggingHandle = useRef(false);
   const currentElement = useRef(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const startOffset = useRef({ x: 0, y: 0 });
   const lastCursorSend = useRef(0);
 
+  // ── Render loop ──────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -29,22 +31,27 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
         drawElement(ctx, el);
         
         if (el.id === selectedId) {
-          ctx.save();
-          ctx.strokeStyle = '#FF00FF';
-          ctx.setLineDash([5, 5]);
-          ctx.lineWidth = 1;
-          const padding = 5;
-          const minX = Math.min(el.x, el.x + (el.width || 0));
-          const minY = Math.min(el.y, el.y + (el.height || 0));
-          const w = Math.abs(el.width || 0);
-          const h = Math.abs(el.height || 0);
-          
-          if (el.type === 'text') {
-             ctx.strokeRect(el.x - padding, el.y - padding, (el.text.length * el.strokeWidth * 6) + padding * 2, (el.strokeWidth * 12) + padding * 2);
+          // Draw curve control handle when curve is selected
+          if (el.type === 'curve') {
+            drawCurveHandle(ctx, el);
           } else {
-             ctx.strokeRect(minX - padding, minY - padding, w + padding * 2, h + padding * 2);
+            ctx.save();
+            ctx.strokeStyle = '#FF00FF';
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 1;
+            const padding = 5;
+            const minX = Math.min(el.x, el.x + (el.width || 0));
+            const minY = Math.min(el.y, el.y + (el.height || 0));
+            const w = Math.abs(el.width || 0);
+            const h = Math.abs(el.height || 0);
+            
+            if (el.type === 'text') {
+              ctx.strokeRect(el.x - padding, el.y - padding, (el.text.length * el.strokeWidth * 6) + padding * 2, (el.strokeWidth * 12) + padding * 2);
+            } else {
+              ctx.strokeRect(minX - padding, minY - padding, w + padding * 2, h + padding * 2);
+            }
+            ctx.restore();
           }
-          ctx.restore();
         }
       });
       
@@ -59,6 +66,7 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
     return () => cancelAnimationFrame(animationFrameId);
   }, [elements, selectedId]);
 
+  // ── Canvas resize ────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -80,18 +88,29 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
     };
   };
 
+  // ── Pointer Down ─────────────────────────────────────────────
   const handlePointerDown = (e) => {
     const { x, y } = getMousePos(e);
     
     if (currentTool === 'select') {
       const sortedElements = [...elements].sort((a, b) => b.zIndex - a.zIndex);
+
+      // Check if clicking on a curve control handle first
+      if (selectedId) {
+        const selectedEl = elements.find(el => el.id === selectedId);
+        if (selectedEl?.type === 'curve' && isPointNearCurveHandle(x, y, selectedEl)) {
+          isDraggingHandle.current = true;
+          return;
+        }
+      }
+
       const clickedElement = sortedElements.find(el => {
-         if (el.type === 'text') {
-            const w = el.text.length * el.strokeWidth * 6;
-            const h = el.strokeWidth * 12;
-            return x >= el.x && x <= el.x + w && y >= el.y && y <= el.y + h;
-         }
-         return isPointInElement(x, y, el);
+        if (el.type === 'text') {
+          const w = el.text.length * el.strokeWidth * 6;
+          const h = el.strokeWidth * 12;
+          return x >= el.x && x <= el.x + w && y >= el.y && y <= el.y + h;
+        }
+        return isPointInElement(x, y, el);
       });
       
       if (clickedElement) {
@@ -116,7 +135,8 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
         color: currentColor,
         strokeWidth: currentStrokeWidth,
         zIndex: elements.length > 0 ? Math.max(...elements.map(e => e.zIndex)) + 1 : 0,
-        text: currentTool === 'text' ? 'New Text' : undefined
+        text: currentTool === 'text' ? 'New Text' : undefined,
+        controlPoint: currentTool === 'curve' ? { x, y } : undefined,
       };
       
       if (currentTool === 'text') {
@@ -130,14 +150,24 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
     }
   };
 
+  // ── Pointer Move ─────────────────────────────────────────────
   const handlePointerMove = (e) => {
     const { x, y } = getMousePos(e);
     
-    // Broadcast cursor at ~30fps to avoid flooding
+    // Throttled cursor broadcast at ~30fps
     const now = Date.now();
     if (now - lastCursorSend.current > 33) {
       if (broadcastCursor) broadcastCursor(x, y, currentColor);
       lastCursorSend.current = now;
+    }
+
+    // Dragging curve control handle
+    if (isDraggingHandle.current && selectedId) {
+      const el = elements.find(el => el.id === selectedId);
+      if (el) {
+        updateElement({ ...el, controlPoint: { x, y } });
+      }
+      return;
     }
     
     if (currentTool === 'select' && isDragging.current && selectedId) {
@@ -155,17 +185,33 @@ export function useCanvas(elements, { addElement, updateElement, broadcastCursor
       currentElement.current = {
         ...currentElement.current,
         width: x - currentElement.current.x,
-        height: y - currentElement.current.y
+        height: y - currentElement.current.y,
       };
     }
   };
 
+  // ── Pointer Up ───────────────────────────────────────────────
   const handlePointerUp = () => {
+    if (isDraggingHandle.current) {
+      isDraggingHandle.current = false;
+      return;
+    }
+
     if (isDrawing.current && currentElement.current) {
       const el = currentElement.current;
       if (Math.abs(el.width) > 5 || Math.abs(el.height) > 5 || el.type === 'text') {
-        addElement(el);
-        setSelectedId(el.id);
+        // For curves, set an initial arched control point
+        const finalEl = el.type === 'curve'
+          ? {
+              ...el,
+              controlPoint: {
+                x: el.x + el.width / 2,
+                y: el.y + el.height / 2 - 60,
+              },
+            }
+          : el;
+        addElement(finalEl);
+        setSelectedId(finalEl.id);
       }
       isDrawing.current = false;
       currentElement.current = null;

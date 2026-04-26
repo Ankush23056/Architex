@@ -52,6 +52,37 @@ export const drawElement = (ctx, element) => {
       }
       break;
     }
+    case 'curve': {
+      const endX = element.x + element.width;
+      const endY = element.y + element.height;
+      const cp = element.controlPoint || {
+        x: (element.x + endX) / 2,
+        y: (element.y + endY) / 2 - 50,
+      };
+
+      // Draw the curve
+      ctx.beginPath();
+      ctx.moveTo(element.x, element.y);
+      ctx.quadraticCurveTo(cp.x, cp.y, endX, endY);
+      ctx.stroke();
+
+      // Arrowhead: tangent at t=1 is (endX - cpX, endY - cpY)
+      const headLen = 14 + (element.strokeWidth || 2);
+      const angle = Math.atan2(endY - cp.y, endX - cp.x);
+      ctx.beginPath();
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(
+        endX - headLen * Math.cos(angle - Math.PI / 6),
+        endY - headLen * Math.sin(angle - Math.PI / 6)
+      );
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(
+        endX - headLen * Math.cos(angle + Math.PI / 6),
+        endY - headLen * Math.sin(angle + Math.PI / 6)
+      );
+      ctx.stroke();
+      break;
+    }
     case 'text':
       ctx.font = `${element.strokeWidth * 10}px "JetBrains Mono", "Fira Code", monospace`;
       ctx.textBaseline = 'top';
@@ -60,6 +91,39 @@ export const drawElement = (ctx, element) => {
     default:
       break;
   }
+  ctx.restore();
+};
+
+// Draw control handle for a selected curve element
+export const drawCurveHandle = (ctx, element) => {
+  if (element.type !== 'curve') return;
+  const endX = element.x + element.width;
+  const endY = element.y + element.height;
+  const cp = element.controlPoint || {
+    x: (element.x + endX) / 2,
+    y: (element.y + endY) / 2 - 50,
+  };
+
+  ctx.save();
+  // Dashed tension guide lines
+  ctx.strokeStyle = 'rgba(255,0,255,0.4)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(element.x, element.y);
+  ctx.lineTo(cp.x, cp.y);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
+
+  // Control point handle
+  ctx.setLineDash([]);
+  ctx.strokeStyle = '#FF00FF';
+  ctx.fillStyle = '#0a0a0a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cp.x, cp.y, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
   ctx.restore();
 };
 
@@ -104,9 +168,36 @@ export const isPointInElement = (x, y, element) => {
       const projY = ey + t * height;
       return distance(x, y, projX, projY) < hitTestPadding;
     }
+    case 'curve': {
+      // Sample 30 points along the quadratic bezier and check proximity
+      const endX = ex + width;
+      const endY = ey + height;
+      const cp = element.controlPoint || {
+        x: (ex + endX) / 2,
+        y: (ey + endY) / 2 - 50,
+      };
+      for (let i = 0; i <= 30; i++) {
+        const t = i / 30;
+        const bx = (1 - t) * (1 - t) * ex + 2 * (1 - t) * t * cp.x + t * t * endX;
+        const by = (1 - t) * (1 - t) * ey + 2 * (1 - t) * t * cp.y + t * t * endY;
+        if (distance(x, y, bx, by) < hitTestPadding) return true;
+      }
+      return false;
+    }
     default:
       return false;
   }
+};
+
+export const isPointNearCurveHandle = (x, y, element) => {
+  if (element.type !== 'curve') return false;
+  const endX = element.x + element.width;
+  const endY = element.y + element.height;
+  const cp = element.controlPoint || {
+    x: (element.x + endX) / 2,
+    y: (element.y + endY) / 2 - 50,
+  };
+  return distance(x, y, cp.x, cp.y) < 14;
 };
 
 const distance = (x1, y1, x2, y2) => {

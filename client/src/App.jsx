@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useWhiteboardState } from './state/useWhiteboardState';
 import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
@@ -10,9 +10,25 @@ function App() {
   const { elements, connected, updateElement, deleteElement, bringToFront, sendToBack } = stateActions;
   
   const [canvasApi, setCanvasApi] = useState(null);
+  const [showPanel, setShowPanel] = useState(true);
 
-  const selectedElement = canvasApi?.selectedId 
-    ? elements.find(e => e.id === canvasApi.selectedId) 
+  // H key toggles Properties Panel
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'h' || e.key === 'H') {
+      if (e.target.tagName !== 'INPUT') {
+        setShowPanel(v => !v);
+      }
+    }
+  }, []);
+
+  // Register H key globally
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  const selectedElement = canvasApi?.selectedId
+    ? elements.find(e => e.id === canvasApi.selectedId)
     : null;
 
   return (
@@ -24,33 +40,33 @@ function App() {
       />
       
       {canvasApi && (
-        <>
-          <Toolbar 
-            currentTool={canvasApi.currentTool} 
-            setCurrentTool={canvasApi.setCurrentTool} 
-          />
-          
-          <PropertiesPanel 
-            selectedElement={selectedElement}
-            updateElement={updateElement}
-            bringToFront={bringToFront}
-            sendToBack={sendToBack}
-            deleteElement={(id) => {
-               deleteElement(id);
-               canvasApi.setSelectedId(null);
-            }}
-            currentColor={canvasApi.currentColor}
-            setCurrentColor={canvasApi.setCurrentColor}
-            currentStrokeWidth={canvasApi.currentStrokeWidth}
-            setCurrentStrokeWidth={canvasApi.setCurrentStrokeWidth}
-          />
-        </>
+        <Toolbar 
+          currentTool={canvasApi.currentTool} 
+          setCurrentTool={canvasApi.setCurrentTool} 
+        />
       )}
+
+      <PropertiesPanel
+        visible={showPanel}
+        selectedElement={selectedElement}
+        updateElement={updateElement}
+        bringToFront={bringToFront}
+        sendToBack={sendToBack}
+        deleteElement={(id) => {
+          deleteElement(id);
+          canvasApi?.setSelectedId(null);
+        }}
+        currentColor={canvasApi?.currentColor ?? '#39FF14'}
+        setCurrentColor={canvasApi?.setCurrentColor ?? (() => {})}
+        currentStrokeWidth={canvasApi?.currentStrokeWidth ?? 2}
+        setCurrentStrokeWidth={canvasApi?.setCurrentStrokeWidth ?? (() => {})}
+      />
 
       <StatusBar 
         connected={connected} 
         elementCount={elements.length} 
-        selectedId={canvasApi?.selectedId} 
+        selectedId={canvasApi?.selectedId}
+        showPanelHint={!showPanel}
       />
     </div>
   );

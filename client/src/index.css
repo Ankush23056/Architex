@@ -28,4 +28,11 @@
   .panel-brutal {
     @apply bg-surface-1 border-2 border-border-brutal p-4 shadow-brutal;
   }
+
+  .panel-glass {
+    background: rgba(10, 10, 10, 0.82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    @apply border-2 border-border-brutal shadow-brutal;
+  }
 }
