@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface text-white font-sans antialiased overflow-hidden m-0 p-0;
+  }
+}
+
+@layer components {
+  .btn-brutal {
+    @apply px-4 py-2 bg-surface-2 border-2 border-border-brutal font-mono text-sm uppercase tracking-wider transition-all duration-75;
+  }
+  
+  .btn-brutal:hover {
+    @apply -translate-y-1 -translate-x-1 shadow-brutal border-neon-green text-neon-green;
+  }
+  
+  .btn-brutal:active {
+    @apply translate-y-0 translate-x-0 shadow-none;
+  }
+
+  .btn-brutal.active {
+    @apply bg-surface-3 border-neon-green text-neon-green shadow-brutal-sm;
+  }
+  
+  .panel-brutal {
+    @apply bg-surface-1 border-2 border-border-brutal p-4 shadow-brutal;
+  }
+}
