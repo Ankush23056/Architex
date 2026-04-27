@@ -11,6 +11,8 @@ export default {
         'neon-cyan': '#00FFFF',
         'neon-magenta': '#FF00FF',
         'neon-yellow': '#FFE600',
+        'groq-orange': '#F55036',
+        'electric-purple': '#9D00FF',
         'surface': '#0a0a0a',
         'surface-1': '#111111',
         'surface-2': '#1a1a1a',

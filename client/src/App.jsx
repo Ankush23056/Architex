@@ -8,7 +8,7 @@ import { cleanupMess } from './utils/cleanupUtils';
 
 function App() {
   const stateActions = useWhiteboardState();
-  const { elements, connected, updateElement, updateElementsBulk, deleteElement, bringToFront, sendToBack, saveHistory, undo, redo, canUndo, canRedo } = stateActions;
+  const { elements, connected, addElement, updateElement, updateElementsBulk, deleteElement, bringToFront, sendToBack, saveHistory, undo, redo, canUndo, canRedo } = stateActions;
   
   const [canvasApi, setCanvasApi] = useState(null);
   const [showPanel, setShowPanel] = useState(true);
@@ -59,8 +59,12 @@ function App() {
 
       <PropertiesPanel
         visible={showPanel}
+        elements={elements}
         selectedElement={selectedElement}
         updateElement={updateElement}
+        updateElementsBulk={updateElementsBulk}
+        addElement={addElement}
+        saveHistory={saveHistory}
         bringToFront={(id) => {
           saveHistory(elements);
           bringToFront(id);
@@ -86,20 +90,6 @@ function App() {
         selectedId={canvasApi?.selectedId}
         showPanelHint={!showPanel}
       />
-
-      <button 
-        className="absolute bottom-4 right-4 btn-brutal !bg-neon-magenta !text-black !border-black hover:!bg-neon-cyan shadow-brutal flex items-center gap-2 z-20"
-        title="Mess Clean-up: Grid Snap, Align, Space"
-        onClick={() => {
-          if (elements.length > 0) {
-            saveHistory(elements);
-            const cleaned = cleanupMess(elements);
-            updateElementsBulk(cleaned);
-          }
-        }}
-      >
-        <span className="text-xl">✨</span> Magic Wand
-      </button>
     </div>
   );
 }

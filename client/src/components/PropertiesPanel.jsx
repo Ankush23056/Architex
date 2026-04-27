@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { cleanupMess } from '../utils/cleanupUtils';
 
 const PANEL_STORAGE_KEY = 'architex_panel_pos';
 const DEFAULT_POS = { x: window.innerWidth - 280, y: 16 };
@@ -11,9 +12,29 @@ function loadPos() {
   return DEFAULT_POS;
 }
 
+function useScramble(text, active) {
+  const [displayText, setDisplayText] = useState(text);
+  useEffect(() => {
+    if (!active) {
+      setDisplayText(text);
+      return;
+    }
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*';
+    const interval = setInterval(() => {
+      setDisplayText(text.split('').map(c => c === ' ' ? ' ' : chars[Math.floor(Math.random() * chars.length)]).join(''));
+    }, 50);
+    return () => clearInterval(interval);
+  }, [text, active]);
+  return displayText;
+}
+
 export function PropertiesPanel({
+  elements,
   selectedElement,
   updateElement,
+  updateElementsBulk,
+  addElement,
+  saveHistory,
   bringToFront,
   sendToBack,
   deleteElement,
@@ -29,6 +50,55 @@ export function PropertiesPanel({
   const panelRef = useRef(null);
 
   const colors = ['#39FF14', '#00FFFF', '#FF00FF', '#FFE600', '#FF4500', '#FFFFFF'];
+
+  // ── AI Analysis ─────────────────────────────────────────────
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiResult, setAiResult] = useState(null);
+  const [aiError, setAiError] = useState('');
+  const scrambleText = useScramble('AI ANALYZE', isAnalyzing);
+
+  const handleAnalyze = async () => {
+    setIsAnalyzing(true);
+    setAiResult(null);
+    setAiError('');
+    try {
+      const res = await fetch('http://localhost:3001/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ elements, context: 'MERN Stack Application' })
+      });
+      if (!res.ok) throw new Error('Failed to analyze');
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setAiResult(data);
+    } catch (e) {
+      setAiError(e.message || 'Analysis failed. Is Groq key set?');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleAddMissing = (compName) => {
+    const newElement = {
+      id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      type: 'text',
+      x: window.innerWidth / 2 - 50,
+      y: window.innerHeight / 2 - 20,
+      width: 0,
+      height: 0,
+      color: '#00FFFF', // cyan for suggested components
+      strokeWidth: 2,
+      zIndex: elements.length > 0 ? Math.max(...elements.map(e => e.zIndex)) + 1 : 0,
+      text: compName,
+    };
+    if (saveHistory) saveHistory(elements);
+    addElement(newElement);
+    
+    setAiResult(prev => ({
+      ...prev,
+      missing: prev.missing.filter(m => m !== compName)
+    }));
+  };
 
   // ── Drag logic ──────────────────────────────────────────────
   const onHeaderMouseDown = useCallback((e) => {
@@ -201,6 +271,69 @@ export function PropertiesPanel({
               >
                 ✕ Delete Element
               </button>
+            </div>
+          )}
+
+          {/* ── Global Tools ── */}
+          <div className="flex flex-col gap-2 pt-3 border-t border-border-brutal">
+            <button 
+              className="btn-brutal !bg-neon-magenta !text-black !border-black hover:!bg-neon-cyan shadow-brutal flex items-center justify-center gap-2"
+              title="Mess Clean-up: Grid Snap, Align, Space"
+              onClick={() => {
+                if (elements.length > 0) {
+                  if (saveHistory) saveHistory(elements);
+                  const cleaned = cleanupMess(elements);
+                  if (updateElementsBulk) updateElementsBulk(cleaned);
+                }
+              }}
+            >
+              <span>✨ Magic Wand</span>
+            </button>
+
+            <button
+              className="btn-brutal flex items-center justify-center gap-2 !border-groq-orange !text-groq-orange hover:!bg-groq-orange hover:!text-black"
+              onClick={handleAnalyze}
+              disabled={isAnalyzing}
+            >
+              <span>🧠 {scrambleText}</span>
+            </button>
+          </div>
+
+          {/* AI Feedback */}
+          {aiError && (
+            <div className="text-xs text-red-500 font-mono border border-red-500 p-2 bg-red-500/10">
+              {aiError}
+            </div>
+          )}
+          
+          {aiResult && (
+            <div className="flex flex-col gap-3 font-mono text-xs border border-groq-orange p-3 bg-groq-orange/10">
+              <div className="text-groq-orange font-bold uppercase border-b border-groq-orange/30 pb-1">AI Analysis</div>
+              
+              {aiResult.analysis && aiResult.analysis.length > 0 && (
+                <ul className="list-disc pl-4 space-y-1 opacity-90">
+                  {aiResult.analysis.map((point, idx) => (
+                    <li key={idx}>{point}</li>
+                  ))}
+                </ul>
+              )}
+
+              {aiResult.missing && aiResult.missing.length > 0 && (
+                <div>
+                  <div className="uppercase opacity-70 mb-2 mt-2">Suggested (Click to Add):</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {aiResult.missing.map(m => (
+                      <button
+                        key={m}
+                        className="bg-groq-orange/20 text-groq-orange border border-groq-orange/50 px-2 py-1 rounded-sm hover:bg-groq-orange hover:text-black transition-colors"
+                        onClick={() => handleAddMissing(m)}
+                      >
+                        + {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -4,6 +4,8 @@ import { WebSocketServer } from 'ws';
 import cors from 'cors';
 import { createClient } from 'redis';
 import dotenv from 'dotenv';
+import Groq from 'groq-sdk';
+
 
 dotenv.config();
 
@@ -26,6 +28,88 @@ app.use(express.json());
 // ── Health check ──────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', clients: wss.clients.size, timestamp: Date.now() });
+});
+
+// ── AI Analysis Route ─────────────────────────────────────────
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
+
+app.post('/api/analyze', async (req, res) => {
+  try {
+    const { elements, context } = req.body;
+    
+    // Logic: Extract all text labels and connections from the elements array.
+    const texts = elements.filter(e => e.type === 'text');
+    const curves = elements.filter(e => e.type === 'curve');
+
+    const findTextNear = (x, y) => {
+      let closest = null;
+      let minDist = 200; // Threshold distance
+      for (const t of texts) {
+        // Approximate center of text box
+        const cx = t.x + (t.text.length * t.strokeWidth * 3);
+        const cy = t.y + (t.strokeWidth * 6);
+        const dist = Math.hypot(x - cx, y - cy);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = t.text;
+        }
+      }
+      return closest;
+    };
+
+    const components = texts.map(t => t.text);
+    const connections = [];
+
+    curves.forEach(c => {
+      const startText = findTextNear(c.x, c.y);
+      const endText = findTextNear(c.x + c.width, c.y + c.height);
+      if (startText && endText && startText !== endText) {
+        connections.push(`${startText} connects to ${endText}`);
+      }
+    });
+
+    const promptMessage = `Context: ${context || 'General Software Architecture'}
+    
+Components detected:
+${components.map(c => `- ${c}`).join('\n')}
+
+Connections detected:
+${connections.map(c => `- ${c}`).join('\n')}
+
+Please analyze this architecture based on the provided stack/context.
+`;
+
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: "You are an elite System Architect. Analyze the following components and connections. Return a JSON object with: 1. 'analysis' (3 bullet points of high-level feedback), 2. 'missing' (an array of strings representing missing production-grade components, e.g., 'Load Balancer', 'Redis Cache', 'WAF'). DO NOT wrap the output in markdown code blocks like ```json ... ```, just output the raw JSON."
+        },
+        {
+          role: 'user',
+          content: promptMessage,
+        }
+      ],
+      model: 'llama3-70b-8192',
+      temperature: 0.2,
+      response_format: { type: 'json_object' }
+    });
+
+    let result;
+    try {
+      result = JSON.parse(chatCompletion.choices[0].message.content);
+    } catch (parseError) {
+      console.error('Groq JSON parsing error:', parseError);
+      return res.status(500).json({ error: 'AI returned malformed JSON.' });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Groq Analysis Error:', error);
+    res.status(500).json({ error: 'Failed to analyze architecture' });
+  }
 });
 
 const httpServer = createServer(app);
