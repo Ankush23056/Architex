@@ -126,7 +126,7 @@ export function PropertiesPanel({
       const res = await fetch('http://localhost:3001/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ diagramMap, components, context: 'MERN Stack Application' }),
+        body: JSON.stringify({ connections: diagramMap, components, context: 'MERN Stack Application' }),
         signal: controller.signal
       });
       
@@ -223,8 +223,8 @@ export function PropertiesPanel({
   return (
     <div
       ref={panelRef}
-      className="absolute z-20 w-64 select-none"
-      style={{ left: pos.x, top: pos.y }}
+      className="absolute z-20 w-64 select-none flex flex-col"
+      style={{ left: pos.x, top: pos.y, maxHeight: '90vh', boxSizing: 'border-box' }}
     >
       {/* ── Header / drag handle ── */}
       <div
@@ -249,11 +249,14 @@ export function PropertiesPanel({
       {/* ── Body ── */}
       {!isMinimized && (
         <div
-          className="border-2 border-border-brutal border-t-0 p-4 flex flex-col gap-4"
+          className="border-2 border-border-brutal border-t-0 p-4 flex flex-col gap-4 overflow-y-auto"
           style={{
             background: 'rgba(10,10,10,0.82)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
+            flex: '1 1 auto',
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#39FF14 transparent',
           }}
         >
           {/* No selection placeholder */}
@@ -380,7 +383,8 @@ export function PropertiesPanel({
             <div 
               className="flex flex-col gap-3 font-mono text-xs border border-groq-orange bg-groq-orange/10 overflow-y-auto"
               style={{
-                maxHeight: '400px',
+                flex: '1 1 auto',
+                minHeight: '200px',
                 scrollbarWidth: 'thin',
                 scrollbarColor: '#39FF14 transparent',
               }}

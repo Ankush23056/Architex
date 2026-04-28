@@ -111,13 +111,13 @@ app.post('/api/analyze', async (req, res) => {
     }
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    const { diagramMap, components, context } = req.body;
+    const { connections, components, context } = req.body;
     
     // Fallback if no components or map provided
-    const mapStr = diagramMap || 'No explicit connections found';
+    const mapStr = connections || 'No explicit connections found';
     const compStr = Array.isArray(components) ? components.join(', ') : 'None';
 
-    const promptMessage = `Diagram Topology Map: [${mapStr}]\n\nAll Components detected: ${compStr}\nContext: ${context || 'Software Architecture'}`;
+    const promptMessage = `Connections: ${mapStr}\n\nAll Components detected: ${compStr}\nContext: ${context || 'Software Architecture'}`;
 
     let chatCompletion;
     try {
@@ -125,11 +125,11 @@ app.post('/api/analyze', async (req, res) => {
         messages: [
           {
             role: 'system',
-            content: "You are a System Architect. Be concise. Analyze this map: [CONNECTIONS]. Do not give a general MERN overview. Instead, provide 4-5 short bullet points on the specific data flow drawn. If a database is missing from the connection, mention it once. Stop repeating general definitions. Return a JSON object with: 1. 'analysis' (array of strings, 4-5 bullet points of feedback), 2. 'missing' (array of strings representing missing production-grade components). DO NOT wrap the output in markdown code blocks like ```json ... ```, just output the raw JSON."
+            content: "Act as a No-Nonsense Lead Architect. Rules: 1. Max 50 words total. 2. Use bullet points. 3. If you see an arrow from A to B, acknowledge the 'Flow'. 4. Do not define terms like MERN. 5. Only suggest 2 missing component. Return a JSON object with: 1. 'analysis' (array of strings, bullet points of feedback), 2. 'missing' (array of exactly 2 strings representing missing production-grade components). DO NOT wrap the output in markdown code blocks like ```json ... ```, just output the raw JSON."
           },
           {
             role: 'user',
-            content: promptMessage.replace('[CONNECTIONS]', mapStr),
+            content: promptMessage,
           }
         ],
         model: 'llama-3.3-70b-versatile',
