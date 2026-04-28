@@ -15,6 +15,7 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
   const isDraggingHandle = useRef(false);
   const currentElement = useRef(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
+  const currentPointer = useRef({ x: 0, y: 0 });
   const startOffsets = useRef({}); // id -> {x, y, points}
   const lastCursorSend = useRef(0);
   const elementsSnapshot = useRef(null);
@@ -31,36 +32,48 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
       const sortedElements = [...elements].sort((a, b) => a.zIndex - b.zIndex);
       
       sortedElements.forEach((el) => {
-        drawElement(ctx, el);
+        let renderEl = el;
+        // If dragging, apply real-time local offset so we don't spam WebSockets
+        if (isDragging.current && startOffsets.current[el.id]) {
+          const dx = currentPointer.current.x - dragStartPos.current.x;
+          const dy = currentPointer.current.y - dragStartPos.current.y;
+          const offset = startOffsets.current[el.id];
+          renderEl = { ...el, x: offset.x + dx, y: offset.y + dy };
+          if (el.type === 'path' && offset.points) {
+            renderEl.points = offset.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+          }
+        }
         
-        if (el.id === selectedId || selectedIds.includes(el.id)) {
+        drawElement(ctx, renderEl);
+        
+        if (renderEl.id === selectedId || selectedIds.includes(renderEl.id)) {
           // Draw curve control handle when curve is selected
-          if (el.type === 'curve' && el.id === selectedId) {
-            drawCurveHandle(ctx, el);
+          if (renderEl.type === 'curve' && renderEl.id === selectedId) {
+            drawCurveHandle(ctx, renderEl);
           } else {
             ctx.save();
             ctx.strokeStyle = '#FF00FF';
             ctx.setLineDash([5, 5]);
             ctx.lineWidth = 1;
             const padding = 5;
-            let minX = el.x;
-            let minY = el.y;
-            let w = el.width || 0;
-            let h = el.height || 0;
+            let minX = renderEl.x;
+            let minY = renderEl.y;
+            let w = renderEl.width || 0;
+            let h = renderEl.height || 0;
             
-            if (el.type === 'path' && el.points && el.points.length > 0) {
-              const xs = el.points.map(p => p.x);
-              const ys = el.points.map(p => p.y);
+            if (renderEl.type === 'path' && renderEl.points && renderEl.points.length > 0) {
+              const xs = renderEl.points.map(p => p.x);
+              const ys = renderEl.points.map(p => p.y);
               minX = Math.min(...xs);
               minY = Math.min(...ys);
               w = Math.max(...xs) - minX;
               h = Math.max(...ys) - minY;
               ctx.strokeRect(minX - padding, minY - padding, w + padding * 2, h + padding * 2);
-            } else if (el.type === 'text') {
-              ctx.strokeRect(el.x - padding, el.y - padding, (el.text.length * el.strokeWidth * 6) + padding * 2, (el.strokeWidth * 12) + padding * 2);
+            } else if (renderEl.type === 'text') {
+              ctx.strokeRect(renderEl.x - padding, renderEl.y - padding, (renderEl.text.length * renderEl.strokeWidth * 6) + padding * 2, (renderEl.strokeWidth * 12) + padding * 2);
             } else {
-              minX = Math.min(el.x, el.x + w);
-              minY = Math.min(el.y, el.y + h);
+              minX = Math.min(renderEl.x, renderEl.x + w);
+              minY = Math.min(renderEl.y, renderEl.y + h);
               w = Math.abs(w);
               h = Math.abs(h);
               ctx.strokeRect(minX - padding, minY - padding, w + padding * 2, h + padding * 2);
@@ -74,10 +87,20 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
       if (selectedIds.length > 1) {
         let allMinX = Infinity, allMinY = Infinity, allMaxX = -Infinity, allMaxY = -Infinity;
         selectedIds.forEach(id => {
-          const el = elements.find(e => e.id === id);
+          let el = elements.find(e => e.id === id);
           if (el) {
+             // Use local drag offset if dragging
+             if (isDragging.current && startOffsets.current[el.id]) {
+               const dx = currentPointer.current.x - dragStartPos.current.x;
+               const dy = currentPointer.current.y - dragStartPos.current.y;
+               const offset = startOffsets.current[el.id];
+               el = { ...el, x: offset.x + dx, y: offset.y + dy };
+               if (el.type === 'path' && offset.points) {
+                 el.points = offset.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+               }
+             }
              let ex = el.x, ey = el.y, ew = el.width || 0, eh = el.height || 0;
-             if (el.type === 'path' && el.points) {
+             if (el.type === 'path' && el.points && el.points.length > 0) {
                ex = Math.min(...el.points.map(p => p.x));
                ey = Math.min(...el.points.map(p => p.y));
                ew = Math.max(...el.points.map(p => p.x)) - ex;
@@ -147,6 +170,7 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
   // ── Pointer Down ─────────────────────────────────────────────
   const handlePointerDown = (e) => {
     const { x, y } = getMousePos(e);
+    currentPointer.current = { x, y };
     elementsSnapshot.current = elements; // Capture state before any modification
     
     if (currentTool === 'select') {
@@ -199,7 +223,7 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
       
       const newElement = {
         id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-        type: currentTool,
+        type: currentTool === 'pen' ? 'path' : currentTool,
         x,
         y,
         width: 0,
@@ -227,6 +251,7 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
   // ── Pointer Move ─────────────────────────────────────────────
   const handlePointerMove = (e) => {
     const { x, y } = getMousePos(e);
+    currentPointer.current = { x, y };
     
     // Throttled cursor broadcast at ~30fps
     const now = Date.now();
@@ -245,34 +270,15 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
     }
     
     if (currentTool === 'select' && isDragging.current && Object.keys(startOffsets.current).length > 0) {
-      const dx = x - dragStartPos.current.x;
-      const dy = y - dragStartPos.current.y;
-      
-      const updatedElements = [];
-      Object.keys(startOffsets.current).forEach(id => {
-        const el = elements.find(e => e.id === id);
-        if (el) {
-          const offset = startOffsets.current[id];
-          const newEl = { ...el, x: offset.x + dx, y: offset.y + dy };
-          if (el.type === 'path' && offset.points) {
-            newEl.points = offset.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-          }
-          updatedElements.push(newEl);
-        }
-      });
-      
-      if (updatedElements.length > 0) {
-        if (updateElementsBulk && updatedElements.length > 1) {
-          updateElementsBulk(updatedElements);
-        } else {
-          updateElement(updatedElements[0]);
-        }
-      }
+      // Local transform only - see render loop
     } else if (currentTool === 'select' && marquee) {
       setMarquee(prev => ({ ...prev, currentX: x, currentY: y }));
     } else if (isDrawing.current && currentElement.current) {
       if (currentTool === 'pen') {
-        currentElement.current.points.push({ x, y });
+        const lastPoint = currentElement.current.points[currentElement.current.points.length - 1];
+        if (Math.hypot(x - lastPoint.x, y - lastPoint.y) > 3) {
+          currentElement.current.points.push({ x, y });
+        }
       } else {
         currentElement.current = {
           ...currentElement.current,
@@ -311,7 +317,7 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
         const elMaxX = Math.max(ex, ex + ew);
         const elMinY = Math.min(ey, ey + eh);
         const elMaxY = Math.max(ey, ey + eh);
-        return !(elMaxX < minX || elMinX > maxX || elMaxY < minY || elMinY > maxY);
+        return elMinX >= minX && elMaxX <= maxX && elMinY >= minY && elMaxY <= maxY;
       });
 
       if (selected.length > 0) {
@@ -325,7 +331,7 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
       setMarquee(null);
     } else if (isDrawing.current && currentElement.current) {
       const el = currentElement.current;
-      if (el.type === 'pen' || Math.abs(el.width) > 5 || Math.abs(el.height) > 5 || el.type === 'text') {
+      if (el.type === 'path' || Math.abs(el.width) > 5 || Math.abs(el.height) > 5 || el.type === 'text') {
         if (saveHistory) saveHistory(elementsSnapshot.current);
         const finalEl = el.type === 'curve'
           ? {
@@ -346,6 +352,31 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
       currentElement.current = null;
     } else if (isDragging.current) {
       if (saveHistory) saveHistory(elementsSnapshot.current);
+      
+      const dx = currentPointer.current.x - dragStartPos.current.x;
+      const dy = currentPointer.current.y - dragStartPos.current.y;
+      
+      const updatedElements = [];
+      Object.keys(startOffsets.current).forEach(id => {
+        const el = elements.find(e => e.id === id);
+        if (el) {
+          const offset = startOffsets.current[id];
+          const newEl = { ...el, x: offset.x + dx, y: offset.y + dy };
+          if (el.type === 'path' && offset.points) {
+            newEl.points = offset.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+          }
+          updatedElements.push(newEl);
+        }
+      });
+      
+      if (updatedElements.length > 0) {
+        if (updateElementsBulk && updatedElements.length > 1) {
+          updateElementsBulk(updatedElements);
+        } else {
+          updateElement(updatedElements[0]);
+        }
+      }
+      
       isDragging.current = false;
       startOffsets.current = {};
     }
@@ -355,6 +386,8 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
     canvasRef,
     selectedId,
     setSelectedId,
+    selectedIds,
+    setSelectedIds,
     currentTool,
     setCurrentTool,
     currentColor,

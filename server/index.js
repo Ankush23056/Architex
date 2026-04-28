@@ -217,6 +217,10 @@ wss.on('connection', async (ws) => {
         canvasState.elements = canvasState.elements.filter((el) => el.id !== payload.id);
         stateChanged = true;
         break;
+      case 'ELEMENTS_DELETE_BULK':
+        canvasState.elements = canvasState.elements.filter((el) => !payload.includes(el.id));
+        stateChanged = true;
+        break;
       case 'CANVAS_CLEAR':
         canvasState.elements = [];
         stateChanged = true;

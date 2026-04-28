@@ -35,6 +35,11 @@ function reducer(state, action) {
         ...state,
         elements: state.elements.filter((el) => el.id !== action.payload.id),
       };
+    case 'DELETE_ELEMENTS_BULK':
+      return {
+        ...state,
+        elements: state.elements.filter(el => !action.payload.includes(el.id)),
+      };
     case 'UPDATE_CURSOR':
       return {
         ...state,
@@ -97,6 +102,8 @@ export function useWhiteboardState() {
           dispatch({ type: 'UPDATE_ELEMENTS_BULK', payload: msg.payload });
         } else if (msg.type === 'ELEMENT_DELETE') {
           dispatch({ type: 'DELETE_ELEMENT', payload: msg.payload });
+        } else if (msg.type === 'ELEMENTS_DELETE_BULK') {
+          dispatch({ type: 'DELETE_ELEMENTS_BULK', payload: msg.payload });
         } else if (msg.type === 'CURSOR_UPDATE') {
           dispatch({ type: 'UPDATE_CURSOR', payload: { clientId: msg.clientId, cursor: msg.payload } });
         } else if (msg.type === 'USER_DISCONNECT') {
@@ -144,6 +151,11 @@ export function useWhiteboardState() {
     broadcast('ELEMENT_DELETE', { id });
   };
 
+  const deleteElementsBulk = (idsArray) => {
+    dispatch({ type: 'DELETE_ELEMENTS_BULK', payload: idsArray });
+    broadcast('ELEMENTS_DELETE_BULK', idsArray);
+  };
+
   const bringToFront = (id) => {
     const element = state.elements.find(el => el.id === id);
     if (!element) return;
@@ -184,6 +196,7 @@ export function useWhiteboardState() {
     updateElement,
     updateElementsBulk,
     deleteElement,
+    deleteElementsBulk,
     bringToFront,
     sendToBack,
     broadcastCursor,

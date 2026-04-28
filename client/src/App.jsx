@@ -8,7 +8,7 @@ import { cleanupMess } from './utils/cleanupUtils';
 
 function App() {
   const stateActions = useWhiteboardState();
-  const { elements, connected, addElement, updateElement, updateElementsBulk, deleteElement, bringToFront, sendToBack, saveHistory, undo, redo, canUndo, canRedo } = stateActions;
+  const { elements, connected, addElement, updateElement, updateElementsBulk, deleteElement, deleteElementsBulk, bringToFront, sendToBack, saveHistory, undo, redo, canUndo, canRedo } = stateActions;
   
   const [canvasApi, setCanvasApi] = useState(null);
   const [showPanel, setShowPanel] = useState(true);
@@ -25,8 +25,20 @@ function App() {
     } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
       e.preventDefault();
       redo();
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (canvasApi?.selectedIds?.length > 0) {
+        e.preventDefault();
+        saveHistory(elements);
+        if (canvasApi.selectedIds.length === 1) {
+          deleteElement(canvasApi.selectedIds[0]);
+        } else {
+          deleteElementsBulk(canvasApi.selectedIds);
+        }
+        canvasApi.setSelectedIds([]);
+        canvasApi.setSelectedId(null);
+      }
     }
-  }, [undo, redo]);
+  }, [undo, redo, elements, canvasApi, saveHistory, deleteElement, deleteElementsBulk]);
 
   // Register H key globally
   useEffect(() => {
@@ -75,7 +87,12 @@ function App() {
         }}
         deleteElement={(id) => {
           saveHistory(elements);
-          deleteElement(id);
+          if (canvasApi?.selectedIds?.length > 1) {
+            deleteElementsBulk(canvasApi.selectedIds);
+          } else {
+            deleteElement(id);
+          }
+          canvasApi?.setSelectedIds([]);
           canvasApi?.setSelectedId(null);
         }}
         currentColor={canvasApi?.currentColor ?? '#39FF14'}
