@@ -85,8 +85,10 @@ export function useWhiteboardState() {
     ws.current.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'CANVAS_SYNC') {
-          dispatch({ type: 'SYNC_STATE', payload: msg.payload });
+        if (msg.type === 'init-state' || msg.type === 'CANVAS_SYNC') {
+          if (msg.payload && Array.isArray(msg.payload.elements)) {
+            dispatch({ type: 'SYNC_STATE', payload: msg.payload });
+          }
         } else if (msg.type === 'ELEMENT_ADD') {
           dispatch({ type: 'ADD_ELEMENT', payload: msg.payload });
         } else if (msg.type === 'ELEMENT_UPDATE') {

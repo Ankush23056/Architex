@@ -13,14 +13,14 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const REDIS_KEY = 'architex:canvas_state';
 
-// Initialize Redis — disable infinite retry so server starts without Redis locally
+// Initialize Redis — with try/catch to prevent server crashes on cloud connection blips
 const redisClient = createClient({
   url: process.env.REDIS_URL || 'redis://localhost:6379',
   socket: {
     reconnectStrategy: (retries) => {
       if (retries > 3) {
         console.log('[REDIS] Giving up reconnecting. Running without persistence.');
-        return false; // stop retrying
+        return false;
       }
       return Math.min(retries * 200, 1000);
     }
@@ -28,9 +28,15 @@ const redisClient = createClient({
 });
 
 redisClient.on('error', (err) => console.error('[REDIS] Error:', err.message));
-redisClient.connect()
-  .then(() => console.log('[REDIS] Connected successfully'))
-  .catch(() => console.log('[REDIS] Running without Redis (canvas state will not persist).'));
+
+(async () => {
+  try {
+    await redisClient.connect();
+    console.log('[REDIS] Connected successfully');
+  } catch (err) {
+    console.error('[REDIS] Initial connection failed:', err.message);
+  }
+})();
 
 // Explicit CORS: allow the Vite dev server and any deployed frontend
 app.use(cors({
@@ -145,23 +151,33 @@ const wss = new WebSocketServer({ server: httpServer });
 
 // Load initial state from Redis, fallback to empty array
 let canvasState = { elements: [] };
-if (redisClient.isOpen) {
-  try {
-    const storedState = await redisClient.get(REDIS_KEY);
-    if (storedState) {
-      canvasState = JSON.parse(storedState);
-      console.log('[REDIS] Loaded initial state');
-    }
-  } catch (err) {
-    console.error('[REDIS] Failed to load initial state', err.message);
-  }
-}
 
-wss.on('connection', (ws) => {
+wss.on('connection', async (ws) => {
   const clientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   console.log(`[WS] Connected: ${clientId} | Total: ${wss.clients.size}`);
 
-  // Send full canvas state to newly connected client
+  // Fetch the latest board state from Redis on every new connection
+  if (redisClient.isOpen) {
+    try {
+      const storedState = await redisClient.get(REDIS_KEY);
+      if (storedState) {
+        canvasState = JSON.parse(storedState);
+        console.log(`[REDIS] Fetched latest state for ${clientId}`);
+        
+        // Emit special init-state event to the newly connected socket
+        ws.send(JSON.stringify({
+          type: 'init-state',
+          payload: canvasState,
+          clientId: 'server',
+        }));
+        return; // We sent init-state, so we can return early
+      }
+    } catch (err) {
+      console.error('[REDIS] Failed to load state for new client', err.message);
+    }
+  }
+
+  // If Redis fetch failed or returned null, send whatever we have in memory
   ws.send(JSON.stringify({
     type: 'CANVAS_SYNC',
     payload: canvasState,
