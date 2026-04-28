@@ -88,6 +88,16 @@ export const drawElement = (ctx, element) => {
       ctx.textBaseline = 'top';
       ctx.fillText(element.text || 'Text', element.x, element.y);
       break;
+    case 'path': {
+      if (!element.points || element.points.length === 0) break;
+      ctx.beginPath();
+      ctx.moveTo(element.points[0].x, element.points[0].y);
+      for (let i = 1; i < element.points.length; i++) {
+        ctx.lineTo(element.points[i].x, element.points[i].y);
+      }
+      ctx.stroke();
+      break;
+    }
     default:
       break;
   }
@@ -181,6 +191,24 @@ export const isPointInElement = (x, y, element) => {
         const bx = (1 - t) * (1 - t) * ex + 2 * (1 - t) * t * cp.x + t * t * endX;
         const by = (1 - t) * (1 - t) * ey + 2 * (1 - t) * t * cp.y + t * t * endY;
         if (distance(x, y, bx, by) < hitTestPadding) return true;
+      }
+      return false;
+    }
+    case 'path': {
+      if (!element.points) return false;
+      for (let i = 0; i < element.points.length - 1; i++) {
+        const p1 = element.points[i];
+        const p2 = element.points[i + 1];
+        const l2 = Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2);
+        if (l2 === 0) {
+          if (distance(x, y, p1.x, p1.y) < hitTestPadding) return true;
+          continue;
+        }
+        let t = ((x - p1.x) * (p2.x - p1.x) + (y - p1.y) * (p2.y - p1.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        const projX = p1.x + t * (p2.x - p1.x);
+        const projY = p1.y + t * (p2.y - p1.y);
+        if (distance(x, y, projX, projY) < hitTestPadding) return true;
       }
       return false;
     }

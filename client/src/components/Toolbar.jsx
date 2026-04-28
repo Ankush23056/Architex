@@ -6,6 +6,7 @@ export function Toolbar({ currentTool, setCurrentTool, undo, redo, canUndo, canR
     { id: 'line', label: 'Line', icon: '╱' },
     { id: 'arrow', label: 'Arrow', icon: '→' },
     { id: 'curve', label: 'CurveArr', icon: '⤵' },
+    { id: 'pen', label: 'Pen', icon: '✎' },
     { id: 'text', label: 'Text', icon: 'T' },
   ];
 
