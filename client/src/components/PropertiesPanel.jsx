@@ -14,17 +14,25 @@ function loadPos() {
 
 function useScramble(text, active) {
   const [displayText, setDisplayText] = useState(text);
+  const intervalRef = useRef(null);
+
   useEffect(() => {
     if (!active) {
       setDisplayText(text);
+      if (intervalRef.current) clearInterval(intervalRef.current);
       return;
     }
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*';
-    const interval = setInterval(() => {
-      setDisplayText(text.split('').map(c => c === ' ' ? ' ' : chars[Math.floor(Math.random() * chars.length)]).join(''));
+    intervalRef.current = setInterval(() => {
+      setDisplayText(
+        text.split('').map(c => c === ' ' ? ' ' : chars[Math.floor(Math.random() * chars.length)]).join('')
+      );
     }, 50);
-    return () => clearInterval(interval);
-  }, [text, active]);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [active]); // only re-run when active changes, not on every render
+
   return displayText;
 }
 
@@ -62,17 +70,24 @@ export function PropertiesPanel({
     setAiResult(null);
     setAiError('');
     try {
+      console.log('[AI] Sending request to server with', elements.length, 'elements');
       const res = await fetch('http://localhost:3001/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ elements, context: 'MERN Stack Application' })
       });
-      if (!res.ok) throw new Error('Failed to analyze');
+
       const data = await res.json();
+      console.log('[AI] Server response:', res.status, data);
+
+      if (!res.ok) {
+        throw new Error(data.error || `Server error: ${res.status} ${res.statusText}`);
+      }
       if (data.error) throw new Error(data.error);
       setAiResult(data);
     } catch (e) {
-      setAiError(e.message || 'Analysis failed. Is Groq key set?');
+      console.error('[AI] Fetch failed:', e);
+      setAiError(e.message || 'Failed to fetch. Is the server running on port 3001?');
     } finally {
       setIsAnalyzing(false);
     }
@@ -291,7 +306,7 @@ export function PropertiesPanel({
             </button>
 
             <button
-              className="btn-brutal flex items-center justify-center gap-2 !border-groq-orange !text-groq-orange hover:!bg-groq-orange hover:!text-black"
+              className="btn-brutal !bg-groq-orange !text-black !border-black hover:!bg-neon-yellow shadow-brutal flex items-center justify-center gap-2"
               onClick={handleAnalyze}
               disabled={isAnalyzing}
             >

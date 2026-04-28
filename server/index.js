@@ -13,16 +13,31 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const REDIS_KEY = 'architex:canvas_state';
 
-// Initialize Redis
+// Initialize Redis — disable infinite retry so server starts without Redis locally
 const redisClient = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379'
+  url: process.env.REDIS_URL || 'redis://localhost:6379',
+  socket: {
+    reconnectStrategy: (retries) => {
+      if (retries > 3) {
+        console.log('[REDIS] Giving up reconnecting. Running without persistence.');
+        return false; // stop retrying
+      }
+      return Math.min(retries * 200, 1000);
+    }
+  }
 });
 
-redisClient.on('error', (err) => console.error('[REDIS] Error:', err));
-await redisClient.connect();
-console.log('[REDIS] Connected successfully');
+redisClient.on('error', (err) => console.error('[REDIS] Error:', err.message));
+redisClient.connect()
+  .then(() => console.log('[REDIS] Connected successfully'))
+  .catch(() => console.log('[REDIS] Running without Redis (canvas state will not persist).'));
 
-app.use(cors());
+// Explicit CORS: allow the Vite dev server and any deployed frontend
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000', '*'],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 
 // ── Health check ──────────────────────────────────────────────
@@ -31,12 +46,15 @@ app.get('/health', (_req, res) => {
 });
 
 // ── AI Analysis Route ─────────────────────────────────────────
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
-
 app.post('/api/analyze', async (req, res) => {
+  console.log('[AI] Request received. Elements count:', req.body?.elements?.length ?? 0);
   try {
+    if (!process.env.GROQ_API_KEY) {
+      console.error('[AI] GROQ_API_KEY is not set in .env');
+      return res.status(500).json({ error: 'GROQ_API_KEY is missing from the server environment.' });
+    }
+
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     const { elements, context } = req.body;
     
     // Logic: Extract all text labels and connections from the elements array.
@@ -81,34 +99,42 @@ ${connections.map(c => `- ${c}`).join('\n')}
 Please analyze this architecture based on the provided stack/context.
 `;
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: "You are an elite System Architect. Analyze the following components and connections. Return a JSON object with: 1. 'analysis' (3 bullet points of high-level feedback), 2. 'missing' (an array of strings representing missing production-grade components, e.g., 'Load Balancer', 'Redis Cache', 'WAF'). DO NOT wrap the output in markdown code blocks like ```json ... ```, just output the raw JSON."
-        },
-        {
-          role: 'user',
-          content: promptMessage,
-        }
-      ],
-      model: 'llama3-70b-8192',
-      temperature: 0.2,
-      response_format: { type: 'json_object' }
-    });
+    let chatCompletion;
+    try {
+      chatCompletion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: "You are an elite System Architect. Analyze the following components and connections. Return a JSON object with: 1. 'analysis' (3 bullet points of high-level feedback), 2. 'missing' (an array of strings representing missing production-grade components, e.g., 'Load Balancer', 'Redis Cache', 'WAF'). DO NOT wrap the output in markdown code blocks like ```json ... ```, just output the raw JSON."
+          },
+          {
+            role: 'user',
+            content: promptMessage,
+          }
+        ],
+        model: 'llama3-70b-8192',
+        temperature: 0.2,
+        response_format: { type: 'json_object' }
+      });
+      console.log('[AI] Groq response received successfully.');
+    } catch (groqError) {
+      console.error('[AI] Groq API call failed:', groqError.message);
+      return res.status(503).json({ error: 'AI Service Unavailable. Check your GROQ_API_KEY.' });
+    }
 
     let result;
     try {
       result = JSON.parse(chatCompletion.choices[0].message.content);
     } catch (parseError) {
-      console.error('Groq JSON parsing error:', parseError);
+      console.error('[AI] Groq JSON parse error:', parseError);
       return res.status(500).json({ error: 'AI returned malformed JSON.' });
     }
 
+    console.log('[AI] Sending result to client:', JSON.stringify(result).slice(0, 100));
     res.json(result);
   } catch (error) {
-    console.error('Groq Analysis Error:', error);
-    res.status(500).json({ error: 'Failed to analyze architecture' });
+    console.error('[AI] Unexpected error:', error.message);
+    res.status(500).json({ error: 'Failed to analyze architecture: ' + error.message });
   }
 });
 
@@ -119,14 +145,16 @@ const wss = new WebSocketServer({ server: httpServer });
 
 // Load initial state from Redis, fallback to empty array
 let canvasState = { elements: [] };
-try {
-  const storedState = await redisClient.get(REDIS_KEY);
-  if (storedState) {
-    canvasState = JSON.parse(storedState);
-    console.log('[REDIS] Loaded initial state');
+if (redisClient.isOpen) {
+  try {
+    const storedState = await redisClient.get(REDIS_KEY);
+    if (storedState) {
+      canvasState = JSON.parse(storedState);
+      console.log('[REDIS] Loaded initial state');
+    }
+  } catch (err) {
+    console.error('[REDIS] Failed to load initial state', err.message);
   }
-} catch (err) {
-  console.error('[REDIS] Failed to load initial state', err);
 }
 
 wss.on('connection', (ws) => {
