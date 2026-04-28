@@ -5,13 +5,63 @@ import cors from 'cors';
 import { createClient } from 'redis';
 import dotenv from 'dotenv';
 import Groq from 'groq-sdk';
-
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FILE_FALLBACK = path.join(__dirname, 'canvas_state.json');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const REDIS_KEY = 'architex:canvas_state';
+
+// ── Persistence helpers (Redis → file fallback) ───────────────
+async function saveState(state) {
+  // Try Redis first
+  if (redisClient.isOpen) {
+    try {
+      await redisClient.set(REDIS_KEY, JSON.stringify(state));
+      return;
+    } catch (err) {
+      console.warn('[PERSIST] Redis save failed, falling back to file:', err.message);
+    }
+  }
+  // Fallback: write to local JSON file
+  try {
+    fs.writeFileSync(FILE_FALLBACK, JSON.stringify(state));
+  } catch (err) {
+    console.error('[PERSIST] File save failed:', err.message);
+  }
+}
+
+async function loadState() {
+  // Try Redis first
+  if (redisClient.isOpen) {
+    try {
+      const stored = await redisClient.get(REDIS_KEY);
+      if (stored) {
+        console.log('[PERSIST] Loaded state from Redis');
+        return JSON.parse(stored);
+      }
+    } catch (err) {
+      console.warn('[PERSIST] Redis load failed, falling back to file:', err.message);
+    }
+  }
+  // Fallback: read from local JSON file
+  if (fs.existsSync(FILE_FALLBACK)) {
+    try {
+      const stored = fs.readFileSync(FILE_FALLBACK, 'utf8');
+      console.log('[PERSIST] Loaded state from file fallback');
+      return JSON.parse(stored);
+    } catch (err) {
+      console.error('[PERSIST] File load failed:', err.message);
+    }
+  }
+  return null;
+}
 
 // Initialize Redis — with try/catch to prevent server crashes on cloud connection blips
 const redisClient = createClient({
@@ -61,49 +111,13 @@ app.post('/api/analyze', async (req, res) => {
     }
 
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    const { elements, context } = req.body;
+    const { diagramMap, components, context } = req.body;
     
-    // Logic: Extract all text labels and connections from the elements array.
-    const texts = elements.filter(e => e.type === 'text');
-    const curves = elements.filter(e => e.type === 'curve');
+    // Fallback if no components or map provided
+    const mapStr = diagramMap || 'No explicit connections found';
+    const compStr = Array.isArray(components) ? components.join(', ') : 'None';
 
-    const findTextNear = (x, y) => {
-      let closest = null;
-      let minDist = 200; // Threshold distance
-      for (const t of texts) {
-        // Approximate center of text box
-        const cx = t.x + (t.text.length * t.strokeWidth * 3);
-        const cy = t.y + (t.strokeWidth * 6);
-        const dist = Math.hypot(x - cx, y - cy);
-        if (dist < minDist) {
-          minDist = dist;
-          closest = t.text;
-        }
-      }
-      return closest;
-    };
-
-    const components = texts.map(t => t.text);
-    const connections = [];
-
-    curves.forEach(c => {
-      const startText = findTextNear(c.x, c.y);
-      const endText = findTextNear(c.x + c.width, c.y + c.height);
-      if (startText && endText && startText !== endText) {
-        connections.push(`${startText} connects to ${endText}`);
-      }
-    });
-
-    const promptMessage = `Context: ${context || 'General Software Architecture'}
-    
-Components detected:
-${components.map(c => `- ${c}`).join('\n')}
-
-Connections detected:
-${connections.map(c => `- ${c}`).join('\n')}
-
-Please analyze this architecture based on the provided stack/context.
-`;
+    const promptMessage = `Diagram Topology Map: [${mapStr}]\n\nAll Components detected: ${compStr}\nContext: ${context || 'Software Architecture'}`;
 
     let chatCompletion;
     try {
@@ -111,14 +125,14 @@ Please analyze this architecture based on the provided stack/context.
         messages: [
           {
             role: 'system',
-            content: "You are an elite System Architect. Analyze the following components and connections. Return a JSON object with: 1. 'analysis' (3 bullet points of high-level feedback), 2. 'missing' (an array of strings representing missing production-grade components, e.g., 'Load Balancer', 'Redis Cache', 'WAF'). DO NOT wrap the output in markdown code blocks like ```json ... ```, just output the raw JSON."
+            content: "You are a System Architect. Be concise. Analyze this map: [CONNECTIONS]. Do not give a general MERN overview. Instead, provide 4-5 short bullet points on the specific data flow drawn. If a database is missing from the connection, mention it once. Stop repeating general definitions. Return a JSON object with: 1. 'analysis' (array of strings, 4-5 bullet points of feedback), 2. 'missing' (array of strings representing missing production-grade components). DO NOT wrap the output in markdown code blocks like ```json ... ```, just output the raw JSON."
           },
           {
             role: 'user',
-            content: promptMessage,
+            content: promptMessage.replace('[CONNECTIONS]', mapStr),
           }
         ],
-        model: 'llama3-70b-8192',
+        model: 'llama-3.3-70b-versatile',
         temperature: 0.2,
         response_format: { type: 'json_object' }
       });
@@ -156,30 +170,13 @@ wss.on('connection', async (ws) => {
   const clientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   console.log(`[WS] Connected: ${clientId} | Total: ${wss.clients.size}`);
 
-  // Fetch the latest board state from Redis on every new connection
-  if (redisClient.isOpen) {
-    try {
-      const storedState = await redisClient.get(REDIS_KEY);
-      if (storedState) {
-        canvasState = JSON.parse(storedState);
-        console.log(`[REDIS] Fetched latest state for ${clientId}`);
-        
-        // Emit special init-state event to the newly connected socket
-        ws.send(JSON.stringify({
-          type: 'init-state',
-          payload: canvasState,
-          clientId: 'server',
-        }));
-        return; // We sent init-state, so we can return early
-      }
-    } catch (err) {
-      console.error('[REDIS] Failed to load state for new client', err.message);
-    }
-  }
+  // Load latest state from Redis or file fallback
+  const stored = await loadState();
+  if (stored) canvasState = stored;
 
-  // If Redis fetch failed or returned null, send whatever we have in memory
+  // Send state to the newly connected client
   ws.send(JSON.stringify({
-    type: 'CANVAS_SYNC',
+    type: 'init-state',
     payload: canvasState,
     clientId: 'server',
   }));
@@ -237,10 +234,10 @@ wss.on('connection', async (ws) => {
         break;
     }
 
-    // Persist to Redis asynchronously if state changed
+    // Persist to Redis or file fallback if state changed
     if (stateChanged) {
-      redisClient.set(REDIS_KEY, JSON.stringify(canvasState)).catch(err => {
-        console.error('[REDIS] Failed to save state', err);
+      saveState(canvasState).catch(err => {
+        console.error('[PERSIST] Failed to save state', err);
       });
     }
 

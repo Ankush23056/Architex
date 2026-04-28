@@ -36,6 +36,23 @@ function useScramble(text, active) {
   return displayText;
 }
 
+function TypewriterText({ text, delay = 20 }) {
+  const [displayed, setDisplayed] = useState('');
+
+  useEffect(() => {
+    setDisplayed('');
+    let i = 0;
+    const interval = setInterval(() => {
+      setDisplayed(text.slice(0, i + 1));
+      i++;
+      if (i >= text.length) clearInterval(interval);
+    }, delay);
+    return () => clearInterval(interval);
+  }, [text, delay]);
+
+  return <span>{displayed}</span>;
+}
+
 export function PropertiesPanel({
   elements,
   selectedElement,
@@ -71,11 +88,49 @@ export function PropertiesPanel({
     setAiError('');
     try {
       console.log('[AI] Sending request to server with', elements.length, 'elements');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+
+      // Calculate connections map on the frontend
+      const texts = elements.filter(e => e.type === 'text');
+      const curves = elements.filter(e => e.type === 'curve');
+
+      const findTextNear = (x, y) => {
+        let closest = null;
+        let minDist = 300;
+        for (const t of texts) {
+          const cx = t.x + (t.width || 100) / 2;
+          const cy = t.y + (t.height || 40) / 2;
+          const dist = Math.hypot(x - cx, y - cy);
+          if (dist < minDist) {
+            minDist = dist;
+            closest = t.text;
+          }
+        }
+        return closest;
+      };
+
+      const connections = [];
+      curves.forEach(c => {
+        const startText = findTextNear(c.x, c.y);
+        const endText = findTextNear(c.x + (c.width || 0), c.y + (c.height || 0));
+        if (startText && endText && startText !== endText) {
+          connections.push(`[${startText}] -> [${endText}]`);
+        }
+      });
+
+      const components = texts.map(t => t.text);
+      const diagramMap = connections.length > 0 ? connections.join(', ') : 'No explicit connections found';
+
       const res = await fetch('http://localhost:3001/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ elements, context: 'MERN Stack Application' })
+        body: JSON.stringify({ diagramMap, components, context: 'MERN Stack Application' }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       const data = await res.json();
       console.log('[AI] Server response:', res.status, data);
@@ -322,33 +377,48 @@ export function PropertiesPanel({
           )}
           
           {aiResult && (
-            <div className="flex flex-col gap-3 font-mono text-xs border border-groq-orange p-3 bg-groq-orange/10">
-              <div className="text-groq-orange font-bold uppercase border-b border-groq-orange/30 pb-1">AI Analysis</div>
+            <div 
+              className="flex flex-col gap-3 font-mono text-xs border border-groq-orange bg-groq-orange/10 overflow-y-auto"
+              style={{
+                maxHeight: '400px',
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#39FF14 transparent',
+              }}
+            >
+              <style>{`
+                div::-webkit-scrollbar { width: 6px; }
+                div::-webkit-scrollbar-track { background: transparent; }
+                div::-webkit-scrollbar-thumb { background-color: #39FF14; border-radius: 10px; }
+              `}</style>
               
-              {aiResult.analysis && aiResult.analysis.length > 0 && (
-                <ul className="list-disc pl-4 space-y-1 opacity-90">
-                  {aiResult.analysis.map((point, idx) => (
-                    <li key={idx}>{point}</li>
-                  ))}
-                </ul>
-              )}
-
-              {aiResult.missing && aiResult.missing.length > 0 && (
-                <div>
-                  <div className="uppercase opacity-70 mb-2 mt-2">Suggested (Click to Add):</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {aiResult.missing.map(m => (
-                      <button
-                        key={m}
-                        className="bg-groq-orange/20 text-groq-orange border border-groq-orange/50 px-2 py-1 rounded-sm hover:bg-groq-orange hover:text-black transition-colors"
-                        onClick={() => handleAddMissing(m)}
-                      >
-                        + {m}
-                      </button>
+              <div className="p-3">
+                <div className="text-groq-orange font-bold uppercase border-b border-groq-orange/30 pb-1 mb-3">AI Analysis</div>
+                
+                {aiResult.analysis && aiResult.analysis.length > 0 && (
+                  <ul className="list-disc pl-4 space-y-2 opacity-90">
+                    {aiResult.analysis.map((point, idx) => (
+                      <li key={idx}><TypewriterText text={point} delay={15} /></li>
                     ))}
+                  </ul>
+                )}
+
+                {aiResult.missing && aiResult.missing.length > 0 && (
+                  <div className="mt-4">
+                    <div className="uppercase opacity-70 mb-2 mt-2 text-groq-orange">Suggested (Click to Add):</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {aiResult.missing.map(m => (
+                        <button
+                          key={m}
+                          className="bg-groq-orange/20 text-groq-orange border border-groq-orange/50 px-2 py-1 rounded-sm hover:bg-groq-orange hover:text-black transition-colors"
+                          onClick={() => handleAddMissing(m)}
+                        >
+                          + {m}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
         </div>
