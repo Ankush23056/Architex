@@ -168,7 +168,7 @@ app.post('/api/share', async (req, res) => {
 
     // Generate 6-char slug
     const slug = Math.random().toString(36).substring(2, 8);
-    const key = `share:${slug}`;
+    const key = `board:${slug}`;
 
     if (redisClient.isOpen) {
       // Expire in 7 days (604800 seconds) to prevent infinite bloat
@@ -190,7 +190,7 @@ app.post('/api/share', async (req, res) => {
 app.get('/api/share/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
-    const key = `share:${slug}`;
+    const key = `board:${slug}`;
 
     if (redisClient.isOpen) {
       const data = await redisClient.get(key);

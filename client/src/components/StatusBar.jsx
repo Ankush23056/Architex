@@ -18,7 +18,7 @@ export function StatusBar({ connected, elementCount, selectedId, selectedCount, 
       <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
         <span>SYNC:</span>
         <span className={connected ? 'text-neon-cyan animate-pulse-neon' : 'text-[#FF00FF]'}>
-          {connected ? 'LIVE (REDIS)' : 'OFFLINE'}
+          {connected ? 'ONLINE' : 'OFFLINE'}
         </span>
       </div>
 

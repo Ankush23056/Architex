@@ -81,7 +81,8 @@ export function PropertiesPanel({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [aiError, setAiError] = useState('');
-  const scrambleText = useScramble('AI ANALYZE', isAnalyzing);
+  const scrambleText = useScramble(isAnalyzing ? 'SCANNING...' : 'AI ANALYZE', isAnalyzing);
+  const API_BASE = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
@@ -128,7 +129,7 @@ export function PropertiesPanel({
       const components = texts.map(t => t.text);
       const diagramMap = connections.length > 0 ? connections.join(', ') : 'No explicit connections found';
 
-      const res = await fetch('http://localhost:3001/api/analyze', {
+      const res = await fetch(`${API_BASE}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connections: diagramMap, components, context: 'MERN Stack Application' }),

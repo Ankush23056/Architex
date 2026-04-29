@@ -7,6 +7,7 @@ import { StatusBar } from './components/StatusBar';
 import { cleanupMess } from './utils/cleanupUtils';
 
 function App() {
+  const API_BASE = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
   const stateActions = useWhiteboardState();
   const { elements, connected, addElement, updateElement, updateElementsBulk, deleteElement, deleteElementsBulk, bringToFront, sendToBack, saveHistory, undo, redo, canUndo, canRedo } = stateActions;
 
@@ -34,10 +35,10 @@ function App() {
 
   // Shared Link Initialization
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const slug = params.get('s');
+    const match = window.location.pathname.match(/^\/s\/([a-zA-Z0-9]+)/);
+    const slug = match ? match[1] : new URLSearchParams(window.location.search).get('s');
     if (slug) {
-      fetch(`http://localhost:3001/api/share/${slug}`)
+      fetch(`${API_BASE}/api/share/${slug}`)
         .then(res => res.json())
         .then(data => {
           if (data.elements) {
@@ -53,14 +54,14 @@ function App() {
   // Handlers for Phase 7 Tools
   const handleShare = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/share', {
+      const res = await fetch(`${API_BASE}/api/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ elements: stateActions.elements })
       });
       const data = await res.json();
       if (data.slug) {
-        const url = `${window.location.origin}/?s=${data.slug}`;
+        const url = `${window.location.origin}/s/${data.slug}`;
         await navigator.clipboard.writeText(url);
         setShareMsg('LINK COPIED: ' + url);
         setTimeout(() => setShareMsg(null), 4000);
@@ -75,7 +76,21 @@ function App() {
   const handleExportPng = () => {
     const canvas = document.querySelector('canvas');
     if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
+
+    // Create an offscreen canvas to apply the background color
+    const offscreen = document.createElement('canvas');
+    offscreen.width = canvas.width;
+    offscreen.height = canvas.height;
+    const ctx = offscreen.getContext('2d');
+    
+    // Fill background with surface color to match app
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+    
+    // Draw the main canvas over it
+    ctx.drawImage(canvas, 0, 0);
+
+    const dataUrl = offscreen.toDataURL('image/png');
     const link = document.createElement('a');
     link.download = `architex-export-${Date.now()}.png`;
     link.href = dataUrl;
