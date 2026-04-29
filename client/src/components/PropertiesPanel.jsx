@@ -68,6 +68,7 @@ export function PropertiesPanel({
   currentStrokeWidth,
   setCurrentStrokeWidth,
   visible,
+  selectedIds = [],
 }) {
   const [pos, setPos] = useState(loadPos);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -87,14 +88,18 @@ export function PropertiesPanel({
     setAiResult(null);
     setAiError('');
     try {
-      console.log('[AI] Sending request to server with', elements.length, 'elements');
+      const targetElements = selectedIds.length > 0 
+        ? elements.filter(e => selectedIds.includes(e.id))
+        : elements;
+      
+      console.log('[AI] Sending request to server with', targetElements.length, 'elements');
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
 
       // Calculate connections map on the frontend
-      const texts = elements.filter(e => e.type === 'text');
-      const curves = elements.filter(e => e.type === 'curve');
+      const texts = targetElements.filter(e => e.type === 'text');
+      const curves = targetElements.filter(e => e.type === 'curve');
 
       const findTextNear = (x, y) => {
         let closest = null;
@@ -210,12 +215,34 @@ export function PropertiesPanel({
   // ── Color / stroke handlers ─────────────────────────────────
   const handleColorChange = (color) => {
     setCurrentColor(color);
-    if (selectedElement) updateElement({ ...selectedElement, color });
+    if (selectedIds.length > 0) {
+      if (saveHistory) saveHistory(elements);
+      const updated = selectedIds.map(id => {
+        const el = elements.find(e => e.id === id);
+        return { ...el, color };
+      });
+      if (updated.length > 1 && updateElementsBulk) {
+        updateElementsBulk(updated);
+      } else if (updated.length === 1) {
+        updateElement(updated[0]);
+      }
+    }
   };
 
   const handleStrokeChange = (width) => {
     setCurrentStrokeWidth(width);
-    if (selectedElement) updateElement({ ...selectedElement, strokeWidth: width });
+    if (selectedIds.length > 0) {
+      if (saveHistory) saveHistory(elements);
+      const updated = selectedIds.map(id => {
+        const el = elements.find(e => e.id === id);
+        return { ...el, strokeWidth: width };
+      });
+      if (updated.length > 1 && updateElementsBulk) {
+        updateElementsBulk(updated);
+      } else if (updated.length === 1) {
+        updateElement(updated[0]);
+      }
+    }
   };
 
   if (!visible) return null;
@@ -225,6 +252,7 @@ export function PropertiesPanel({
       ref={panelRef}
       className="absolute z-20 w-64 select-none flex flex-col"
       style={{ left: pos.x, top: pos.y, maxHeight: '90vh', boxSizing: 'border-box' }}
+      onPointerDown={e => e.stopPropagation()}
     >
       {/* ── Header / drag handle ── */}
       <div
@@ -259,10 +287,15 @@ export function PropertiesPanel({
             scrollbarColor: '#39FF14 transparent',
           }}
         >
-          {/* No selection placeholder */}
-          {!selectedElement && (
+          {/* Selection indicator */}
+          {selectedIds.length === 0 && (
             <p className="text-xs font-mono text-center opacity-40 py-2 border border-dashed border-border-brutal">
               No element selected
+            </p>
+          )}
+          {selectedIds.length > 1 && (
+            <p className="text-xs font-mono text-center text-neon-green py-2 border border-dashed border-neon-green bg-surface">
+              {selectedIds.length} elements selected
             </p>
           )}
 

@@ -141,6 +141,16 @@ export function useWhiteboardState() {
     broadcast('ELEMENT_UPDATE', element);
   };
 
+  const syncState = (elements) => {
+    dispatch({ type: 'SYNC_STATE', payload: { elements } });
+    broadcast('CANVAS_SYNC', { elements });
+  };
+
+  const wipeCanvas = () => {
+    dispatch({ type: 'SYNC_STATE', payload: { elements: [] } });
+    broadcast('CANVAS_CLEAR', {});
+  };
+
   const updateElementsBulk = (elementsArray) => {
     dispatch({ type: 'UPDATE_ELEMENTS_BULK', payload: elementsArray });
     broadcast('ELEMENTS_UPDATE_BULK', elementsArray);
@@ -203,6 +213,8 @@ export function useWhiteboardState() {
     saveHistory,
     undo,
     redo,
+    syncState,
+    wipeCanvas,
     canUndo: state.past.length > 0,
     canRedo: state.future.length > 0,
   };

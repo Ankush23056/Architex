@@ -158,6 +158,58 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
+// ── Sharing Routes ────────────────────────────────────────────
+app.post('/api/share', async (req, res) => {
+  try {
+    const { elements } = req.body;
+    if (!elements || !Array.isArray(elements)) {
+      return res.status(400).json({ error: 'Invalid elements array' });
+    }
+
+    // Generate 6-char slug
+    const slug = Math.random().toString(36).substring(2, 8);
+    const key = `share:${slug}`;
+
+    if (redisClient.isOpen) {
+      // Expire in 7 days (604800 seconds) to prevent infinite bloat
+      await redisClient.set(key, JSON.stringify({ elements }), { EX: 604800 });
+      return res.json({ slug });
+    } else {
+      // Fallback for local
+      const shareDir = path.join(__dirname, 'shares');
+      if (!fs.existsSync(shareDir)) fs.mkdirSync(shareDir);
+      fs.writeFileSync(path.join(shareDir, `${slug}.json`), JSON.stringify({ elements }));
+      return res.json({ slug });
+    }
+  } catch (err) {
+    console.error('[SHARE] Save failed:', err.message);
+    res.status(500).json({ error: 'Failed to create share link' });
+  }
+});
+
+app.get('/api/share/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const key = `share:${slug}`;
+
+    if (redisClient.isOpen) {
+      const data = await redisClient.get(key);
+      if (data) return res.json(JSON.parse(data));
+    } else {
+      // Fallback
+      const sharePath = path.join(__dirname, 'shares', `${slug}.json`);
+      if (fs.existsSync(sharePath)) {
+        return res.json(JSON.parse(fs.readFileSync(sharePath, 'utf8')));
+      }
+    }
+    
+    return res.status(404).json({ error: 'Share not found' });
+  } catch (err) {
+    console.error('[SHARE] Load failed:', err.message);
+    res.status(500).json({ error: 'Failed to load share' });
+  }
+});
+
 const httpServer = createServer(app);
 
 // ── WebSocket Server ──────────────────────────────────────────

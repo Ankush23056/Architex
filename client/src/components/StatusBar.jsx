@@ -1,38 +1,49 @@
 export function StatusBar({ connected, elementCount, selectedId, selectedCount, showPanelHint }) {
   return (
-    <div className="absolute bottom-4 left-4 panel-brutal flex items-center gap-6">
-      {/* Connection status */}
-      <div className="flex items-center gap-2">
-        <div className={`w-3 h-3 rounded-full ${connected ? 'bg-neon-green animate-pulse-neon' : 'bg-[#FF00FF]'}`} />
-        <span className="font-mono text-sm">{connected ? 'Live' : 'Disconnected'}</span>
+    <div className="p-3 border border-border-brutal flex flex-col gap-1 pointer-events-none select-none" style={{ background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(8px)', minWidth: '220px' }}>
+      
+      {/* Telemetry Row 1 */}
+      <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
+        <span>MOUSE: <span id="mouse-coords" className="text-neon-cyan">X: 0 Y: 0</span></span>
+        <span className="text-[#BF00FF]">⊞ 20px</span>
       </div>
 
-      {/* Element count */}
-      <div className="text-sm font-mono border-l-2 border-border-brutal pl-6">
-        Elements: <span className="text-neon-cyan">{elementCount}</span>
+      {/* Telemetry Row 2 */}
+      <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
+        <span>SYSTEM:</span>
+        <span className="text-neon-green">AI: READY (GROQ)</span>
       </div>
 
-      {/* Snap-to-grid indicator */}
-      <div className="text-sm font-mono border-l-2 border-border-brutal pl-6 text-[#BF00FF]">
-        ⊞ 20px
+      {/* Telemetry Row 3 */}
+      <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
+        <span>SYNC:</span>
+        <span className={connected ? 'text-neon-cyan animate-pulse-neon' : 'text-[#FF00FF]'}>
+          {connected ? 'LIVE (REDIS)' : 'OFFLINE'}
+        </span>
+      </div>
+
+      <div className="h-px bg-border-brutal w-full my-1 opacity-50" />
+
+      {/* Telemetry Row 4 */}
+      <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
+        <span>OBJECTS:</span>
+        <span className="text-neon-magenta">{elementCount}</span>
       </div>
 
       {/* Selection info */}
-      {selectedCount > 1 ? (
-        <div className="text-sm font-mono border-l-2 border-border-brutal pl-6 text-[#32CD32]">
-          ▣ <span className="text-neon-green font-bold">{selectedCount}</span> selected
-          <span className="opacity-50 ml-2 text-xs">Del to remove</span>
+      {(selectedCount > 1 || selectedId) && (
+        <div className="flex items-center justify-between text-[10px] font-mono mt-1">
+          <span className="opacity-80">SELECTION:</span>
+          <span className="text-neon-green font-bold">
+            {selectedCount > 1 ? `[${selectedCount}] ACTIVE` : `[1] ACTIVE`}
+          </span>
         </div>
-      ) : selectedId ? (
-        <div className="text-sm font-mono border-l-2 border-border-brutal pl-6 text-neon-magenta truncate max-w-[150px]">
-          Sel: {selectedId}
-        </div>
-      ) : null}
-
+      )}
+      
       {/* Panel hint */}
       {showPanelHint && (
-        <div className="text-xs font-mono border-l-2 border-border-brutal pl-6 opacity-50">
-          Press <kbd className="border border-border-brutal px-1">H</kbd> to show panel
+        <div className="text-[10px] font-mono text-center mt-1 opacity-50">
+          [H] SHOW PANEL
         </div>
       )}
     </div>
