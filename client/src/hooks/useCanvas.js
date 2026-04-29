@@ -451,6 +451,9 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
           setSelectedId(finalEl.id);
           setSelectedIds([finalEl.id]);
         }
+        if (currentToolRef.current === 'curve') {
+          setCurrentTool('select');
+        }
       }
       isDrawing.current = false;
       currentElement.current = null;

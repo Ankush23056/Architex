@@ -1,4 +1,4 @@
-export function StatusBar({ connected, elementCount, selectedId, selectedCount, showPanelHint }) {
+export function StatusBar({ connected, elementCount, selectedId, selectedCount, showPanelHint, myCallsign }) {
   return (
     <div className="p-3 border border-border-brutal flex flex-col gap-1 pointer-events-none select-none" style={{ background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(8px)', minWidth: '220px' }}>
       
@@ -19,6 +19,14 @@ export function StatusBar({ connected, elementCount, selectedId, selectedCount, 
         <span>SYNC:</span>
         <span className={connected ? 'text-neon-cyan animate-pulse-neon' : 'text-[#FF00FF]'}>
           {connected ? 'ONLINE' : 'OFFLINE'}
+        </span>
+      </div>
+
+      {/* Telemetry Row 4 */}
+      <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
+        <span>AGENT:</span>
+        <span className="text-[#39FF14] font-bold">
+          {myCallsign ? myCallsign : 'ASSIGNING...'}
         </span>
       </div>
 

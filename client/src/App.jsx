@@ -9,7 +9,7 @@ import { cleanupMess } from './utils/cleanupUtils';
 function App() {
   const API_BASE = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
   const stateActions = useWhiteboardState();
-  const { elements, connected, addElement, updateElement, updateElementsBulk, deleteElement, deleteElementsBulk, bringToFront, sendToBack, saveHistory, undo, redo, canUndo, canRedo } = stateActions;
+  const { elements, connected, myCallsign, addElement, updateElement, updateElementsBulk, deleteElement, deleteElementsBulk, bringToFront, sendToBack, saveHistory, undo, redo, canUndo, canRedo } = stateActions;
 
   // canvasApiRef holds the live canvas API without triggering renders
   const canvasApiRef = useRef(null);
@@ -227,6 +227,7 @@ function App() {
           selectedId={selectedId}
           selectedCount={selectedIds.length}
           showPanelHint={!showPanel}
+          myCallsign={myCallsign}
         />
         
         {/* SYSTEM OPERATIONS */}

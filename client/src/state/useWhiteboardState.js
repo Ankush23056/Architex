@@ -81,6 +81,7 @@ export function useWhiteboardState() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const ws = useRef(null);
   const [connected, setConnected] = useState(false);
+  const [myCallsign, setMyCallsign] = useState(null);
 
   useEffect(() => {
     ws.current = new WebSocket('ws://localhost:3001');
@@ -108,6 +109,8 @@ export function useWhiteboardState() {
           dispatch({ type: 'UPDATE_CURSOR', payload: { clientId: msg.clientId, cursor: msg.payload } });
         } else if (msg.type === 'USER_DISCONNECT') {
           dispatch({ type: 'REMOVE_USER', payload: { clientId: msg.clientId } });
+        } else if (msg.type === 'IDENTITY') {
+          setMyCallsign(msg.payload.username);
         }
       } catch (e) {
         console.error('Failed to parse WS message', e);
@@ -201,6 +204,7 @@ export function useWhiteboardState() {
   return {
     elements: state.elements,
     activeUsers: state.activeUsers,
+    myCallsign,
     connected,
     addElement,
     updateElement,

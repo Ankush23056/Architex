@@ -215,16 +215,38 @@ const httpServer = createServer(app);
 // ── WebSocket Server ──────────────────────────────────────────
 const wss = new WebSocketServer({ server: httpServer });
 
+const CALLSIGNS = ["VIPER", "TITAN", "NEON", "KRAKEN", "SPECTER", "SHADOW", "GHOST", "STRIKER", "PHANTOM", "COBRA"];
+
 // Load initial state from Redis, fallback to empty array
 let canvasState = { elements: [] };
 
 wss.on('connection', async (ws) => {
-  const clientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const getUniqueUsername = () => {
+    const base = CALLSIGNS[Math.floor(Math.random() * CALLSIGNS.length)];
+    let name = base;
+    let count = 1;
+    const taken = Array.from(wss.clients).map(c => c.username);
+    while (taken.includes(name)) {
+      name = `${base}-${count}`;
+      count++;
+    }
+    return name;
+  };
+
+  ws.username = getUniqueUsername();
+  const clientId = ws.username;
+
   console.log(`[WS] Connected: ${clientId} | Total: ${wss.clients.size}`);
 
   // Load latest state from Redis or file fallback
   const stored = await loadState();
   if (stored) canvasState = stored;
+
+  // Send identity to the newly connected client
+  ws.send(JSON.stringify({
+    type: 'IDENTITY',
+    payload: { username: clientId }
+  }));
 
   // Send state to the newly connected client
   ws.send(JSON.stringify({
