@@ -152,13 +152,6 @@ function App() {
         backgroundSize: '100% 4px'
       }} />
 
-      {/* Top Banner Message */}
-      {shareMsg && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 panel-brutal !border-neon-cyan !bg-surface text-neon-cyan px-6 py-2 text-xs font-mono font-bold tracking-widest animate-pulse-neon shadow-lg">
-          {shareMsg}
-        </div>
-      )}
-
       {/* Purge Modal */}
       {showPurgeModal && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto select-none">
@@ -221,14 +214,23 @@ function App() {
 
       {/* Bottom Left: HUD & System Operations */}
       <div className="absolute bottom-4 left-4 flex items-end gap-2 z-10">
-        <StatusBar
-          connected={connected}
-          elementCount={elements.length}
-          selectedId={selectedId}
-          selectedCount={selectedIds.length}
-          showPanelHint={!showPanel}
-          myCallsign={myCallsign}
-        />
+        <div className="flex flex-col gap-2">
+          {/* HUD TOAST NOTIFICATION */}
+          {shareMsg && (
+            <div className="panel-brutal !border-neon-cyan !bg-surface text-neon-cyan px-3 py-2 text-[10px] font-mono font-bold tracking-tighter animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <span className="mr-2">»</span>{shareMsg.includes('LINK COPIED') ? 'LINK COPIED TO CLIPBOARD' : shareMsg}
+            </div>
+          )}
+          
+          <StatusBar
+            connected={connected}
+            elementCount={elements.length}
+            selectedId={selectedId}
+            selectedCount={selectedIds.length}
+            showPanelHint={!showPanel}
+            myCallsign={myCallsign}
+          />
+        </div>
         
         {/* SYSTEM OPERATIONS */}
         <div className="panel-brutal !p-1 flex gap-[6.5px] border-b-4 !border-b-[#FF00FF]">

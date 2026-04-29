@@ -84,7 +84,7 @@ export function PropertiesPanel({
   const scrambleText = useScramble(isAnalyzing ? 'SCANNING...' : 'AI ANALYZE', isAnalyzing);
   const API_BASE = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = useCallback(async () => {
     setIsAnalyzing(true);
     setAiResult(null);
     setAiError('');
@@ -96,9 +96,8 @@ export function PropertiesPanel({
       console.log('[AI] Sending request to server with', targetElements.length, 'elements');
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      // Calculate connections map on the frontend
       const texts = targetElements.filter(e => e.type === 'text');
       const curves = targetElements.filter(e => e.type === 'curve');
 
@@ -139,22 +138,16 @@ export function PropertiesPanel({
       clearTimeout(timeoutId);
 
       const data = await res.json();
-      console.log('[AI] Server response:', res.status, data);
-
-      if (!res.ok) {
-        throw new Error(data.error || `Server error: ${res.status} ${res.statusText}`);
-      }
-      if (data.error) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || `Server error: ${res.status}`);
       setAiResult(data);
     } catch (e) {
-      console.error('[AI] Fetch failed:', e);
-      setAiError(e.message || 'Failed to fetch. Is the server running on port 3001?');
+      setAiError(e.message || 'Failed to fetch. Is the server running?');
     } finally {
       setIsAnalyzing(false);
     }
-  };
+  }, [API_BASE, selectedIds, elements]);
 
-  const handleAddMissing = (compName) => {
+  const handleAddMissing = useCallback((compName) => {
     const newElement = {
       id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       type: 'text',
@@ -162,7 +155,7 @@ export function PropertiesPanel({
       y: window.innerHeight / 2 - 20,
       width: 0,
       height: 0,
-      color: '#00FFFF', // cyan for suggested components
+      color: '#00FFFF',
       strokeWidth: 2,
       zIndex: elements.length > 0 ? Math.max(...elements.map(e => e.zIndex)) + 1 : 0,
       text: compName,
@@ -170,11 +163,11 @@ export function PropertiesPanel({
     if (saveHistory) saveHistory(elements);
     addElement(newElement);
     
-    setAiResult(prev => ({
+    setAiResult(prev => prev ? ({
       ...prev,
       missing: prev.missing.filter(m => m !== compName)
-    }));
-  };
+    }) : null);
+  }, [elements, addElement, saveHistory]);
 
   // ── Drag logic ──────────────────────────────────────────────
   const onHeaderMouseDown = useCallback((e) => {

@@ -17,8 +17,8 @@ export function StatusBar({ connected, elementCount, selectedId, selectedCount, 
       {/* Telemetry Row 3 */}
       <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
         <span>SYNC:</span>
-        <span className={connected ? 'text-neon-cyan animate-pulse-neon' : 'text-[#FF00FF]'}>
-          {connected ? 'ONLINE' : 'OFFLINE'}
+        <span className={connected ? 'text-neon-green animate-pulse-neon' : 'text-red-500 font-bold'}>
+          {connected ? 'ONLINE' : 'DISCONNECTED'}
         </span>
       </div>
 
@@ -26,7 +26,7 @@ export function StatusBar({ connected, elementCount, selectedId, selectedCount, 
       <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
         <span>AGENT:</span>
         <span className="text-[#39FF14] font-bold">
-          {myCallsign ? myCallsign : 'ASSIGNING...'}
+          {myCallsign ? `YOU ARE: ${myCallsign}` : 'ASSIGNING...'}
         </span>
       </div>
 

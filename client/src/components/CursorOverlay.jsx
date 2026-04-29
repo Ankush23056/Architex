@@ -33,7 +33,7 @@ export function CursorOverlay({ activeUsers }) {
         >
           <CursorIcon color={cursor.color || '#ff00ff'} />
           <div 
-            className="ml-4 mt-1 px-2 py-0.5 text-xs text-neon-green font-mono border-2 font-bold shadow-brutal uppercase"
+            className="ml-6 mt-4 px-2 py-0.5 text-xs text-neon-green font-mono border-2 font-bold shadow-brutal uppercase pointer-events-none whitespace-nowrap"
             style={{ borderColor: cursor.color || '#ff00ff', backgroundColor: '#0a0a0a' }}
           >
             {clientId}
