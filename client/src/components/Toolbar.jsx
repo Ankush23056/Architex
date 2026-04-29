@@ -1,13 +1,13 @@
 export function Toolbar({ currentTool, setCurrentTool, undo, redo, canUndo, canRedo }) {
   const tools = [
     { id: 'select', label: 'Select', icon: '↖' },
+    { id: 'text', label: 'Text', icon: 'T' },
+    { id: 'pen', label: 'Pen', icon: '✎' },
     { id: 'rectangle', label: 'Rect', icon: '▭' },
     { id: 'circle', label: 'Circle', icon: '◯' },
     { id: 'line', label: 'Line', icon: '╱' },
     { id: 'arrow', label: 'Arrow', icon: '→' },
     { id: 'curve', label: 'CurveArr', icon: '⤵' },
-    { id: 'pen', label: 'Pen', icon: '✎' },
-    { id: 'text', label: 'Text', icon: 'T' },
   ];
 
   return (

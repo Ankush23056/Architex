@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWhiteboardState } from './state/useWhiteboardState';
 import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
@@ -9,13 +9,33 @@ import { cleanupMess } from './utils/cleanupUtils';
 function App() {
   const stateActions = useWhiteboardState();
   const { elements, connected, addElement, updateElement, updateElementsBulk, deleteElement, deleteElementsBulk, bringToFront, sendToBack, saveHistory, undo, redo, canUndo, canRedo } = stateActions;
-  
-  const [canvasApi, setCanvasApi] = useState(null);
-  const [showPanel, setShowPanel] = useState(true);
 
-  // H key toggles Properties Panel, Ctrl+Z/Y for Undo/Redo
+  // canvasApiRef holds the live canvas API without triggering renders
+  const canvasApiRef = useRef(null);
+  // Reactive shadow state — updated only when selection actually changes
+  const [selectedId, setSelectedId]       = useState(null);
+  const [selectedIds, setSelectedIds]     = useState([]);
+  const [currentTool, setCurrentTool]     = useState('select');
+  const [currentColor, setCurrentColor]   = useState('#39FF14');
+  const [currentStrokeWidth, setCurrentStrokeWidth] = useState(2);
+  const [showPanel, setShowPanel]         = useState(true);
+
+  // Canvas calls this once with its stable API object
+  const registerCanvasAPI = useCallback((api) => {
+    canvasApiRef.current = api;
+
+    // Wire up reactive mirrors — canvas API calls these to notify App
+    api._onSelectedIdChange   = (id)  => setSelectedId(id);
+    api._onSelectedIdsChange  = (ids) => setSelectedIds([...ids]);
+    api._onToolChange         = (t)   => setCurrentTool(t);
+    api._onColorChange        = (c)   => setCurrentColor(c);
+    api._onStrokeChange       = (s)   => setCurrentStrokeWidth(s);
+  }, []);
+
+  // ── Keyboard shortcuts ───────────────────────────────────────
   const handleKeyDown = useCallback((e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
     if (e.key === 'h' || e.key === 'H') {
       setShowPanel(v => !v);
@@ -26,48 +46,43 @@ function App() {
       e.preventDefault();
       redo();
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (canvasApi?.selectedIds?.length > 0) {
+      const api = canvasApiRef.current;
+      if (!api) return;
+      const ids = api.selectedIds ?? [];
+      if (ids.length > 0) {
         e.preventDefault();
         saveHistory(elements);
-        if (canvasApi.selectedIds.length === 1) {
-          deleteElement(canvasApi.selectedIds[0]);
-        } else {
-          deleteElementsBulk(canvasApi.selectedIds);
-        }
-        canvasApi.setSelectedIds([]);
-        canvasApi.setSelectedId(null);
+        ids.length === 1 ? deleteElement(ids[0]) : deleteElementsBulk(ids);
+        api.setSelectedIds([]);
+        api.setSelectedId(null);
       }
     }
-  }, [undo, redo, elements, canvasApi, saveHistory, deleteElement, deleteElementsBulk]);
+  }, [undo, redo, elements, saveHistory, deleteElement, deleteElementsBulk]);
 
-  // Register H key globally
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  const selectedElement = canvasApi?.selectedId
-    ? elements.find(e => e.id === canvasApi.selectedId)
-    : null;
+  // Derive selected element for the Properties Panel
+  const selectedElement = selectedId ? elements.find(e => e.id === selectedId) : null;
 
   return (
     <div className="w-screen h-screen overflow-hidden relative bg-surface">
-      <Canvas 
-        elements={elements} 
-        stateActions={stateActions} 
-        registerCanvasAPI={setCanvasApi}
+      <Canvas
+        elements={elements}
+        stateActions={stateActions}
+        registerCanvasAPI={registerCanvasAPI}
       />
-      
-      {canvasApi && (
-        <Toolbar 
-          currentTool={canvasApi.currentTool} 
-          setCurrentTool={canvasApi.setCurrentTool} 
-          undo={undo}
-          redo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-        />
-      )}
+
+      <Toolbar
+        currentTool={currentTool}
+        setCurrentTool={(t) => { canvasApiRef.current?.setCurrentTool(t); setCurrentTool(t); }}
+        undo={undo}
+        redo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+      />
 
       <PropertiesPanel
         visible={showPanel}
@@ -77,34 +92,27 @@ function App() {
         updateElementsBulk={updateElementsBulk}
         addElement={addElement}
         saveHistory={saveHistory}
-        bringToFront={(id) => {
-          saveHistory(elements);
-          bringToFront(id);
-        }}
-        sendToBack={(id) => {
-          saveHistory(elements);
-          sendToBack(id);
-        }}
+        bringToFront={(id) => { saveHistory(elements); bringToFront(id); }}
+        sendToBack={(id) => { saveHistory(elements); sendToBack(id); }}
         deleteElement={(id) => {
           saveHistory(elements);
-          if (canvasApi?.selectedIds?.length > 1) {
-            deleteElementsBulk(canvasApi.selectedIds);
-          } else {
-            deleteElement(id);
-          }
-          canvasApi?.setSelectedIds([]);
-          canvasApi?.setSelectedId(null);
+          const ids = canvasApiRef.current?.selectedIds ?? [];
+          if (ids.length > 1) deleteElementsBulk(ids);
+          else deleteElement(id);
+          canvasApiRef.current?.setSelectedIds([]);
+          canvasApiRef.current?.setSelectedId(null);
         }}
-        currentColor={canvasApi?.currentColor ?? '#39FF14'}
-        setCurrentColor={canvasApi?.setCurrentColor ?? (() => {})}
-        currentStrokeWidth={canvasApi?.currentStrokeWidth ?? 2}
-        setCurrentStrokeWidth={canvasApi?.setCurrentStrokeWidth ?? (() => {})}
+        currentColor={currentColor}
+        setCurrentColor={(c) => { canvasApiRef.current?.setCurrentColor(c); setCurrentColor(c); }}
+        currentStrokeWidth={currentStrokeWidth}
+        setCurrentStrokeWidth={(s) => { canvasApiRef.current?.setCurrentStrokeWidth(s); setCurrentStrokeWidth(s); }}
       />
 
-      <StatusBar 
-        connected={connected} 
-        elementCount={elements.length} 
-        selectedId={canvasApi?.selectedId}
+      <StatusBar
+        connected={connected}
+        elementCount={elements.length}
+        selectedId={selectedId}
+        selectedCount={selectedIds.length}
         showPanelHint={!showPanel}
       />
     </div>

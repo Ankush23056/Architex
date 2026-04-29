@@ -3,48 +3,39 @@ import { useCanvas } from '../hooks/useCanvas';
 import { CursorOverlay } from './CursorOverlay';
 
 export function Canvas({ elements, stateActions, registerCanvasAPI }) {
-  const canvasApi = useCanvas(elements, stateActions);
+  // useCanvas now returns a single stable object (built with useRef internally)
+  const api = useCanvas(elements, stateActions);
   const { activeUsers } = stateActions;
-  
-  const {
-    canvasRef,
-    selectedId,
-    handlePointerDown,
-    handlePointerMove,
-    handlePointerUp,
-  } = canvasApi;
 
-  // Provide the API to parent
+  // Register with parent once — the api object is stable and uses getters/setters
+  // for live value access, so no re-registration is needed on re-renders.
   useEffect(() => {
-    registerCanvasAPI(canvasApi);
-  }, [canvasApi, registerCanvasAPI]);
+    registerCanvasAPI(api);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — api is stable
 
-  // Handle keyboard shortcuts
+  // Escape key: deselect + reset tool
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedId && e.target.tagName !== 'INPUT') {
-          stateActions.deleteElement(selectedId);
-          canvasApi.setSelectedId(null);
-        }
-      } else if (e.key === 'Escape') {
-        canvasApi.setSelectedId(null);
-        canvasApi.setCurrentTool('select');
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        api.setSelectedId(null);
+        api.setSelectedIds([]);
+        api.setCurrentTool('select');
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, stateActions, canvasApi]);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [api]);
 
   return (
     <div className="w-full h-full relative overflow-hidden">
       <canvas
-        ref={canvasRef}
+        ref={api.canvasRef}
         className="w-full h-full cursor-crosshair touch-none absolute inset-0 z-0"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
+        onPointerDown={api.handlePointerDown}
+        onPointerMove={api.handlePointerMove}
+        onPointerUp={api.handlePointerUp}
+        onPointerLeave={api.handlePointerUp}
       />
       <CursorOverlay activeUsers={activeUsers} />
     </div>
