@@ -89,7 +89,8 @@ export function useWhiteboardState() {
   const [myCallsign, setMyCallsign] = useState(null);
 
   useEffect(() => {
-    const socket = io('http://localhost:3001');
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : undefined);
+    const socket = io(backendUrl);
     socketRef.current = socket;
 
     socket.on('connect', () => setConnected(true));
