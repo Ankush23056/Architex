@@ -28,8 +28,11 @@ export function CursorOverlay({ activeUsers }) {
       {Object.entries(activeUsers).map(([clientId, cursor]) => (
         <div
           key={clientId}
-          className="absolute top-0 left-0 transition-transform duration-75 ease-linear pointer-events-none flex flex-col items-start"
-          style={{ transform: `translate(${cursor.x}px, ${cursor.y}px)` }}
+          className="absolute top-0 left-0 pointer-events-none flex flex-col items-start"
+          style={{ 
+            transform: `translate(${cursor.x}px, ${cursor.y}px)`,
+            transition: 'transform 0.1s linear'
+          }}
         >
           <CursorIcon color={cursor.color || '#ff00ff'} />
           <div 

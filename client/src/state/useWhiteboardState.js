@@ -1,4 +1,5 @@
 import { useReducer, useEffect, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
 
 const initialState = {
   elements: [],
@@ -79,59 +80,53 @@ function reducer(state, action) {
 
 export function useWhiteboardState() {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const ws = useRef(null);
+  const socketRef = useRef(null);
   const [connected, setConnected] = useState(false);
   const [myCallsign, setMyCallsign] = useState(null);
 
   useEffect(() => {
-    ws.current = new WebSocket('ws://localhost:3001');
+    const socket = io('http://localhost:3001');
+    socketRef.current = socket;
 
-    ws.current.onopen = () => setConnected(true);
+    socket.on('connect', () => setConnected(true));
+    socket.on('disconnect', () => setConnected(false));
 
-    ws.current.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'init-state' || msg.type === 'CANVAS_SYNC') {
-          if (msg.payload && Array.isArray(msg.payload.elements)) {
-            dispatch({ type: 'SYNC_STATE', payload: msg.payload });
-          }
-        } else if (msg.type === 'ELEMENT_ADD') {
-          dispatch({ type: 'ADD_ELEMENT', payload: msg.payload });
-        } else if (msg.type === 'ELEMENT_UPDATE') {
-          dispatch({ type: 'UPDATE_ELEMENT', payload: msg.payload });
-        } else if (msg.type === 'ELEMENTS_UPDATE_BULK') {
-          dispatch({ type: 'UPDATE_ELEMENTS_BULK', payload: msg.payload });
-        } else if (msg.type === 'ELEMENT_DELETE') {
-          dispatch({ type: 'DELETE_ELEMENT', payload: msg.payload });
-        } else if (msg.type === 'ELEMENTS_DELETE_BULK') {
-          dispatch({ type: 'DELETE_ELEMENTS_BULK', payload: msg.payload });
-        } else if (msg.type === 'CURSOR_UPDATE') {
-          dispatch({ type: 'UPDATE_CURSOR', payload: { clientId: msg.clientId, cursor: msg.payload } });
-        } else if (msg.type === 'USER_DISCONNECT') {
-          dispatch({ type: 'REMOVE_USER', payload: { clientId: msg.clientId } });
-        } else if (msg.type === 'IDENTITY') {
-          setMyCallsign(msg.payload.username);
-        }
-      } catch (e) {
-        console.error('Failed to parse WS message', e);
+    socket.on('message', (msg) => {
+      const { type, payload, clientId } = msg;
+      if (type === 'init-state' || type === 'CANVAS_SYNC') {
+        if (payload?.elements) dispatch({ type: 'SYNC_STATE', payload });
+      } else if (type === 'ELEMENT_ADD') {
+        dispatch({ type: 'ADD_ELEMENT', payload });
+      } else if (type === 'ELEMENT_UPDATE') {
+        dispatch({ type: 'UPDATE_ELEMENT', payload });
+      } else if (type === 'ELEMENTS_UPDATE_BULK') {
+        dispatch({ type: 'UPDATE_ELEMENTS_BULK', payload });
+      } else if (type === 'ELEMENT_DELETE') {
+        dispatch({ type: 'DELETE_ELEMENT', payload });
+      } else if (type === 'ELEMENTS_DELETE_BULK') {
+        dispatch({ type: 'DELETE_ELEMENTS_BULK', payload });
+      } else if (type === 'CURSOR_UPDATE') {
+        dispatch({ type: 'UPDATE_CURSOR', payload: { clientId, cursor: payload } });
+      } else if (type === 'USER_DISCONNECT') {
+        dispatch({ type: 'REMOVE_USER', payload: { clientId } });
+      } else if (type === 'IDENTITY') {
+        setMyCallsign(payload.username);
       }
-    };
+    });
 
-    ws.current.onclose = () => setConnected(false);
-
-    return () => {
-      if (ws.current) ws.current.close();
-    };
+    return () => { if (socketRef.current) socketRef.current.disconnect(); };
   }, []);
 
   const broadcast = (type, payload) => {
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ type, payload }));
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('message', { type, payload });
     }
   };
 
   const broadcastCursor = (x, y, color) => {
-    broadcast('CURSOR_UPDATE', { x, y, color });
+    if (socketRef.current?.connected) {
+      socketRef.current.volatile.emit('message', { type: 'CURSOR_UPDATE', payload: { x, y, color } });
+    }
   };
 
   const addElement = (element) => {

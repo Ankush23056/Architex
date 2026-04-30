@@ -26,7 +26,7 @@ export function StatusBar({ connected, elementCount, selectedId, selectedCount, 
       <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
         <span>AGENT:</span>
         <span className="text-[#39FF14] font-bold">
-          {myCallsign ? `YOU ARE: ${myCallsign}` : 'ASSIGNING...'}
+          {myCallsign ? myCallsign : 'ASSIGNING...'}
         </span>
       </div>
 

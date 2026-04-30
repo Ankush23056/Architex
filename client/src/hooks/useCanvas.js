@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { drawElement, drawCurveHandle, isPointInElement, isPointNearCurveHandle } from '../utils/drawingUtils';
+import { throttle } from '../utils/throttle';
 
 // ── Constants ────────────────────────────────────────────────────
 const GRID_SIZE = 20;
@@ -108,6 +109,12 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
   const onToolChange         = useRef(null);
   const onColorChange        = useRef(null);
   const onStrokeChange       = useRef(null);
+
+  // Throttled cursor broadcast (once every 40ms)
+  const throttledBroadcast = useMemo(() => 
+    throttle((x, y, color) => {
+      if (broadcastCursor) broadcastCursor(x, y, color);
+    }, 40), [broadcastCursor]);
 
   // Keep elements ref in sync
   useEffect(() => { elementsRef.current = elements; }, [elements]);
@@ -360,11 +367,8 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
     const { x, y } = getMousePos(e);
     currentPointer.current = { x, y };
 
-    const now = Date.now();
-    if (now - lastCursorSend.current > 33) {
-      if (broadcastCursor) broadcastCursor(x, y, currentColorRef.current);
-      lastCursorSend.current = now;
-    }
+    // Throttled telemetry emission
+    throttledBroadcast(x, y, currentColorRef.current);
 
     if (isDraggingHandle.current && selectedIdRef.current) {
       const el = elementsRef.current.find(el => el.id === selectedIdRef.current);
