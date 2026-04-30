@@ -1,4 +1,4 @@
-export function Toolbar({ currentTool, setCurrentTool, undo, redo, canUndo, canRedo }) {
+export function Toolbar({ currentTool, setCurrentTool, undo, redo, canUndo, canRedo, replicate, hasSelection }) {
   const tools = [
     { id: 'select', label: 'Select', icon: '↖' },
     { id: 'text', label: 'Text', icon: 'T' },
@@ -40,6 +40,18 @@ export function Toolbar({ currentTool, setCurrentTool, undo, redo, canUndo, canR
             <span className="text-[9px] uppercase tracking-widest opacity-70">{tool.label}</span>
           </button>
         ))}
+
+        {/* REPLICATE BUTTON - Consolidated into main tool panel */}
+        <button 
+          title="Replicate (Ctrl+D)"
+          className="btn-brutal flex flex-col items-center justify-center gap-0.5 w-[52px] h-[52px] p-0" 
+          onClick={replicate} 
+          disabled={!hasSelection}
+          style={{ opacity: hasSelection ? 1 : 0.4, cursor: hasSelection ? 'pointer' : 'not-allowed' }}
+        >
+          <span className="text-xl leading-none text-[#FF00FF]">❐</span>
+          <span className="text-[9px] uppercase tracking-widest opacity-70">Dupl</span>
+        </button>
       </div>
 
       {/* REDO BUTTON */}

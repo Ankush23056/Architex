@@ -15,6 +15,10 @@ function reducer(state, action) {
     case 'ADD_ELEMENT':
       if (state.elements.some(el => el.id === action.payload.id)) return state;
       return { ...state, elements: [...state.elements, action.payload] };
+    case 'ADD_ELEMENTS_BULK': {
+      const newElements = action.payload.filter(newEl => !state.elements.some(el => el.id === newEl.id));
+      return { ...state, elements: [...state.elements, ...newElements] };
+    }
     case 'UPDATE_ELEMENT':
       return {
         ...state,
@@ -97,6 +101,8 @@ export function useWhiteboardState() {
         if (payload?.elements) dispatch({ type: 'SYNC_STATE', payload });
       } else if (type === 'ELEMENT_ADD') {
         dispatch({ type: 'ADD_ELEMENT', payload });
+      } else if (type === 'ELEMENTS_ADD_BULK') {
+        dispatch({ type: 'ADD_ELEMENTS_BULK', payload });
       } else if (type === 'ELEMENT_UPDATE') {
         dispatch({ type: 'UPDATE_ELEMENT', payload });
       } else if (type === 'ELEMENTS_UPDATE_BULK') {
@@ -132,6 +138,11 @@ export function useWhiteboardState() {
   const addElement = (element) => {
     dispatch({ type: 'ADD_ELEMENT', payload: element });
     broadcast('ELEMENT_ADD', element);
+  };
+
+  const addElementsBulk = (elementsArray) => {
+    dispatch({ type: 'ADD_ELEMENTS_BULK', payload: elementsArray });
+    broadcast('ELEMENTS_ADD_BULK', elementsArray);
   };
 
   const updateElement = (element) => {
@@ -202,6 +213,7 @@ export function useWhiteboardState() {
     myCallsign,
     connected,
     addElement,
+    addElementsBulk,
     updateElement,
     updateElementsBulk,
     deleteElement,

@@ -84,7 +84,7 @@ app.post('/api/analyze', async (req, res) => {
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [
-        { role: 'system', content: "Act as a No-Nonsense Lead Architect. Rules: 1. Max 50 words. 2. Bullet points. 3. Return JSON with 'analysis' (strings) and 'missing' (2 strings). Raw JSON only." },
+        { role: 'system', content: "You are a Senior System Architect. Analyze the provided diagram connections. Do NOT assume a specific tech stack (like MERN) unless explicitly labeled in the diagram. If the diagram is generic, provide generic architectural feedback. Focus on: 1. Potential bottlenecks, 2. Missing logical links, 3. Security gaps. Keep responses under 40 words." },
         { role: 'user', content: promptMessage }
       ],
       model: 'llama-3.3-70b-versatile',
@@ -171,6 +171,10 @@ io.on('connection', async (socket) => {
     switch (type) {
       case 'ELEMENT_ADD':
         canvasState.elements.push(payload);
+        stateChanged = true;
+        break;
+      case 'ELEMENTS_ADD_BULK':
+        canvasState.elements.push(...payload);
         stateChanged = true;
         break;
       case 'ELEMENT_UPDATE':

@@ -52,6 +52,37 @@ function App() {
   }, []); // Run once on mount
 
   // Handlers for Phase 7 Tools
+  const handleReplicate = useCallback(() => {
+    if (selectedIds.length === 0) return;
+    
+    saveHistory(elements);
+    
+    const newElements = selectedIds.map(id => {
+      const el = elements.find(e => e.id === id);
+      if (!el) return null;
+      
+      const newId = `el_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const cloned = JSON.parse(JSON.stringify(el));
+      
+      cloned.id = newId;
+      cloned.x += 40;
+      cloned.y += 40;
+      
+      // Also shift paths
+      if (cloned.type === 'path' && cloned.points) {
+        cloned.points = cloned.points.map(p => ({ x: p.x + 40, y: p.y + 40 }));
+      }
+      
+      return cloned;
+    }).filter(Boolean);
+    
+    if (newElements.length > 0) {
+      stateActions.addElementsBulk(newElements);
+      canvasApiRef.current?.setSelectedIds(newElements.map(e => e.id));
+      if (newElements.length === 1) canvasApiRef.current?.setSelectedId(newElements[0].id);
+    }
+  }, [selectedIds, elements, saveHistory, stateActions]);
+
   const handleShare = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/share`, {
@@ -122,6 +153,9 @@ function App() {
     } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
       e.preventDefault();
       redo();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      handleReplicate();
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       const api = canvasApiRef.current;
       if (!api) return;
@@ -134,7 +168,7 @@ function App() {
         api.setSelectedId(null);
       }
     }
-  }, [undo, redo, elements, saveHistory, deleteElement, deleteElementsBulk]);
+  }, [undo, redo, elements, saveHistory, deleteElement, deleteElementsBulk, handleReplicate]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -185,6 +219,8 @@ function App() {
         redo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        replicate={handleReplicate}
+        hasSelection={selectedIds.length > 0}
       />
 
       <PropertiesPanel
