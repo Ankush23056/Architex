@@ -125,13 +125,26 @@ export function PropertiesPanel({
         }
       });
 
+      // Improved Context Extraction: Scrape text from all relevant elements
+      const allLabels = elements
+        .filter(e => (e.type === 'rectangle' || e.type === 'circle' || e.type === 'text') && e.text)
+        .map(e => e.text);
+      
+      const diagramContext = allLabels.length > 0 
+        ? `Diagram contains labels [${allLabels.join(', ')}]` 
+        : 'Generic Architecture';
+
       const components = texts.map(t => t.text);
       const diagramMap = connections.length > 0 ? connections.join(', ') : 'No explicit connections found';
 
       const res = await fetch(`${API_BASE}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connections: diagramMap, components, context: 'MERN Stack Application' }),
+        body: JSON.stringify({ 
+          connections: diagramMap, 
+          components, 
+          context: diagramContext 
+        }),
         signal: controller.signal
       });
       
