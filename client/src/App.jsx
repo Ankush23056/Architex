@@ -60,22 +60,27 @@ function App() {
     const newElements = selectedIds.map(id => {
       const el = elements.find(e => e.id === id);
       if (!el) return null;
-      
+      const dx = 40;
+      const dy = 40;
       const newId = `el_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      const cloned = JSON.parse(JSON.stringify(el));
       
-      cloned.id = newId;
-      cloned.x += 40;
-      cloned.y += 40;
-      
-      // Also shift paths
-      if (cloned.type === 'path' && cloned.points) {
-        cloned.points = cloned.points.map(p => ({ x: p.x + 40, y: p.y + 40 }));
+      const clone = {
+        ...el,
+        id: newId,
+        x: el.x + dx,
+        y: el.y + dy,
+        zIndex: el.zIndex + 1,
+      };
+
+      if (el.type === 'path' && el.points) {
+        clone.points = el.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
       }
-      
-      return cloned;
+      if (el.type === 'curve' && el.controlPoint) {
+        clone.controlPoint = { x: el.controlPoint.x + dx, y: el.controlPoint.y + dy };
+      }
+      return clone;
     }).filter(Boolean);
-    
+
     if (newElements.length > 0) {
       stateActions.addElementsBulk(newElements);
       canvasApiRef.current?.setSelectedIds(newElements.map(e => e.id));

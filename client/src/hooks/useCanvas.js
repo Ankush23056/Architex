@@ -303,6 +303,37 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
         }
       }
 
+      // 1. Check if we clicked on an existing selection's bounding box (for group drag)
+      const selIds = selectedIdsRef.current;
+      if (selIds.length > 1) {
+        let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+        selIds.forEach(id => {
+          const el = elementsRef.current.find(e => e.id === id);
+          if (!el) return;
+          const ex = el.x, ey = el.y;
+          const ew = el.type === 'path' && el.points?.length ? Math.max(...el.points.map(p => p.x)) - Math.min(...el.points.map(p => p.x)) : (el.width || 0);
+          const eh = el.type === 'path' && el.points?.length ? Math.max(...el.points.map(p => p.y)) - Math.min(...el.points.map(p => p.y)) : (el.height || 0);
+          gMinX = Math.min(gMinX, Math.min(ex, ex + ew));
+          gMinY = Math.min(gMinY, Math.min(ey, ey + eh));
+          gMaxX = Math.max(gMaxX, Math.max(ex, ex + ew));
+          gMaxY = Math.max(gMaxY, Math.max(ey, ey + eh));
+        });
+
+        // If clicked inside the group box (with 10px padding), start group drag
+        if (x >= gMinX - 10 && x <= gMaxX + 10 && y >= gMinY - 10 && y <= gMaxY + 10) {
+          isDragging.current = true;
+          dragStartPos.current = { x, y };
+          const offsets = {};
+          selIds.forEach(id => {
+            const el = elementsRef.current.find(e => e.id === id);
+            if (el) offsets[id] = { x: el.x, y: el.y, points: el.points?.map(p => ({ ...p })) ?? null };
+          });
+          startOffsets.current = offsets;
+          return;
+        }
+      }
+
+      // 2. Check for individual element clicks
       const clicked = sorted.find(el => {
         if (el.type === 'text') {
           const w = el.text.length * el.strokeWidth * 6, h = el.strokeWidth * 12;
@@ -312,10 +343,25 @@ export function useCanvas(elements, { addElement, updateElement, updateElementsB
       });
 
       if (clicked) {
-        if (!selectedIdsRef.current.includes(clicked.id)) {
+        const isShift = e.shiftKey;
+        const isAlreadySelected = selectedIdsRef.current.includes(clicked.id);
+
+        if (isShift) {
+          // Toggle selection
+          const newIds = isAlreadySelected 
+            ? selectedIdsRef.current.filter(id => id !== clicked.id)
+            : [...selectedIdsRef.current, clicked.id];
+          setSelectedIds(newIds);
+          setSelectedId(newIds[newIds.length - 1] || null);
+          // Don't start dragging on shift-toggle
+          return;
+        }
+
+        if (!isAlreadySelected) {
           setSelectedId(clicked.id);
           setSelectedIds([clicked.id]);
         }
+        
         isDragging.current = true;
         dragStartPos.current = { x, y };
 
