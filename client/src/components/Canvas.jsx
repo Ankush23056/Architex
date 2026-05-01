@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { useCanvas } from '../hooks/useCanvas';
-import { CursorOverlay } from './CursorOverlay';
+import { useEffect } from "react";
+import { useCanvas } from "../hooks/useCanvas";
+import { CursorOverlay } from "./CursorOverlay";
 
 export function Canvas({ elements, stateActions, registerCanvasAPI }) {
   // useCanvas now returns a single stable object (built with useRef internally)
@@ -17,14 +17,14 @@ export function Canvas({ elements, stateActions, registerCanvasAPI }) {
   // Escape key: deselect + reset tool
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         api.setSelectedId(null);
         api.setSelectedIds([]);
-        api.setCurrentTool('select');
+        api.setCurrentTool("select");
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [api]);
 
   return (

@@ -1,133 +1,160 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useWhiteboardState } from './state/useWhiteboardState';
-import { Canvas } from './components/Canvas';
-import { Toolbar } from './components/Toolbar';
-import { PropertiesPanel } from './components/PropertiesPanel';
-import { StatusBar } from './components/StatusBar';
-import { cleanupMess } from './utils/cleanupUtils';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useWhiteboardState } from "./state/useWhiteboardState";
+import { Canvas } from "./components/Canvas";
+import { Toolbar } from "./components/Toolbar";
+import { PropertiesPanel } from "./components/PropertiesPanel";
+import { StatusBar } from "./components/StatusBar";
+import { cleanupMess } from "./utils/cleanupUtils";
 
 function App() {
-  const API_BASE = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
+  const API_BASE =
+    import.meta.env.VITE_API_URL ||
+    (window.location.hostname === "localhost" ? "http://localhost:3001" : "");
   const stateActions = useWhiteboardState();
-  const { elements, connected, myCallsign, addElement, updateElement, updateElementsBulk, deleteElement, deleteElementsBulk, bringToFront, sendToBack, saveHistory, undo, redo, canUndo, canRedo } = stateActions;
+  const {
+    elements,
+    connected,
+    myCallsign,
+    addElement,
+    updateElement,
+    updateElementsBulk,
+    deleteElement,
+    deleteElementsBulk,
+    bringToFront,
+    sendToBack,
+    saveHistory,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = stateActions;
 
   // canvasApiRef holds the live canvas API without triggering renders
   const canvasApiRef = useRef(null);
   // Reactive shadow state — updated only when selection actually changes
-  const [selectedId, setSelectedId]       = useState(null);
-  const [selectedIds, setSelectedIds]     = useState([]);
-  const [currentTool, setCurrentTool]     = useState('select');
-  const [currentColor, setCurrentColor]   = useState('#39FF14');
+  const [selectedId, setSelectedId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [currentTool, setCurrentTool] = useState("select");
+  const [currentColor, setCurrentColor] = useState("#39FF14");
   const [currentStrokeWidth, setCurrentStrokeWidth] = useState(2);
-  const [showPanel, setShowPanel]         = useState(true);
+  const [showPanel, setShowPanel] = useState(true);
   const [showPurgeModal, setShowPurgeModal] = useState(false);
-  const [shareMsg, setShareMsg]           = useState(null);
+  const [shareMsg, setShareMsg] = useState(null);
 
   // Mouse Telemetry Hook
   useEffect(() => {
     const handleMouseMove = (e) => {
-      const coords = document.getElementById('mouse-coords');
-      if (coords) coords.innerText = `X: ${Math.round(e.clientX)} Y: ${Math.round(e.clientY)}`;
+      const coords = document.getElementById("mouse-coords");
+      if (coords)
+        coords.innerText = `X: ${Math.round(e.clientX)} Y: ${Math.round(e.clientY)}`;
     };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
   // Shared Link Initialization
   useEffect(() => {
     const match = window.location.pathname.match(/^\/s\/([a-zA-Z0-9]+)/);
-    const slug = match ? match[1] : new URLSearchParams(window.location.search).get('s');
+    const slug = match
+      ? match[1]
+      : new URLSearchParams(window.location.search).get("s");
     if (slug) {
       fetch(`${API_BASE}/api/share/${slug}`)
-        .then(res => res.json())
-        .then(data => {
+        .then((res) => res.json())
+        .then((data) => {
           if (data.elements) {
             stateActions.syncState(data.elements);
-            setShareMsg('LOADED SHARED ARCHITECTURE');
+            setShareMsg("LOADED SHARED ARCHITECTURE");
             setTimeout(() => setShareMsg(null), 3000);
           }
         })
-        .catch(err => console.error("Failed to load share:", err));
+        .catch((err) => console.error("Failed to load share:", err));
     }
   }, []); // Run once on mount
 
   // Handlers for Phase 7 Tools
   const handleReplicate = useCallback(() => {
     if (selectedIds.length === 0) return;
-    
-    saveHistory(elements);
-    
-    const newElements = selectedIds.map(id => {
-      const el = elements.find(e => e.id === id);
-      if (!el) return null;
-      const dx = 40;
-      const dy = 40;
-      const newId = `el_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      
-      const clone = {
-        ...el,
-        id: newId,
-        x: el.x + dx,
-        y: el.y + dy,
-        zIndex: el.zIndex + 1,
-      };
 
-      if (el.type === 'path' && el.points) {
-        clone.points = el.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
-      }
-      if (el.type === 'curve' && el.controlPoint) {
-        clone.controlPoint = { x: el.controlPoint.x + dx, y: el.controlPoint.y + dy };
-      }
-      return clone;
-    }).filter(Boolean);
+    saveHistory(elements);
+
+    const newElements = selectedIds
+      .map((id) => {
+        const el = elements.find((e) => e.id === id);
+        if (!el) return null;
+        const dx = 40;
+        const dy = 40;
+        const newId = `el_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+        const clone = {
+          ...el,
+          id: newId,
+          x: el.x + dx,
+          y: el.y + dy,
+          zIndex: el.zIndex + 1,
+        };
+
+        if (el.type === "path" && el.points) {
+          clone.points = el.points.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+        }
+        if (el.type === "curve" && el.controlPoint) {
+          clone.controlPoint = {
+            x: el.controlPoint.x + dx,
+            y: el.controlPoint.y + dy,
+          };
+        }
+        return clone;
+      })
+      .filter(Boolean);
 
     if (newElements.length > 0) {
       stateActions.addElementsBulk(newElements);
-      canvasApiRef.current?.setSelectedIds(newElements.map(e => e.id));
-      if (newElements.length === 1) canvasApiRef.current?.setSelectedId(newElements[0].id);
+      canvasApiRef.current?.setSelectedIds(newElements.map((e) => e.id));
+      if (newElements.length === 1)
+        canvasApiRef.current?.setSelectedId(newElements[0].id);
     }
   }, [selectedIds, elements, saveHistory, stateActions]);
 
   const handleShare = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/share`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ elements: stateActions.elements })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ elements: stateActions.elements }),
       });
       const data = await res.json();
       if (data.slug) {
         const url = `${window.location.origin}/s/${data.slug}`;
         await navigator.clipboard.writeText(url);
-        setShareMsg('LINK COPIED: ' + url);
+        setShareMsg("LINK COPIED: " + url);
         setTimeout(() => setShareMsg(null), 4000);
       }
     } catch (err) {
       console.error(err);
-      setShareMsg('SHARE FAILED');
+      setShareMsg("SHARE FAILED");
       setTimeout(() => setShareMsg(null), 3000);
     }
   };
 
   const handleExportPng = () => {
-    const canvas = document.querySelector('canvas');
+    const canvas = document.querySelector("canvas");
     if (!canvas) return;
 
     // Create an offscreen canvas to apply the background color
-    const offscreen = document.createElement('canvas');
+    const offscreen = document.createElement("canvas");
     offscreen.width = canvas.width;
     offscreen.height = canvas.height;
-    const ctx = offscreen.getContext('2d');
-    
+    const ctx = offscreen.getContext("2d");
+
     // Fill background with surface color to match app
-    ctx.fillStyle = '#0a0a0a';
+    ctx.fillStyle = "#0a0a0a";
     ctx.fillRect(0, 0, offscreen.width, offscreen.height);
-    
+
     // Draw the main canvas over it
     ctx.drawImage(canvas, 0, 0);
 
-    const dataUrl = offscreen.toDataURL('image/png');
-    const link = document.createElement('a');
+    const dataUrl = offscreen.toDataURL("image/png");
+    const link = document.createElement("a");
     link.download = `architex-export-${Date.now()}.png`;
     link.href = dataUrl;
     link.click();
@@ -138,72 +165,105 @@ function App() {
     canvasApiRef.current = api;
 
     // Wire up reactive mirrors — canvas API calls these to notify App
-    api._onSelectedIdChange   = (id)  => setSelectedId(id);
-    api._onSelectedIdsChange  = (ids) => setSelectedIds([...ids]);
-    api._onToolChange         = (t)   => setCurrentTool(t);
-    api._onColorChange        = (c)   => setCurrentColor(c);
-    api._onStrokeChange       = (s)   => setCurrentStrokeWidth(s);
+    api._onSelectedIdChange = (id) => setSelectedId(id);
+    api._onSelectedIdsChange = (ids) => setSelectedIds([...ids]);
+    api._onToolChange = (t) => setCurrentTool(t);
+    api._onColorChange = (c) => setCurrentColor(c);
+    api._onStrokeChange = (s) => setCurrentStrokeWidth(s);
   }, []);
 
   // ── Keyboard shortcuts ───────────────────────────────────────
-  const handleKeyDown = useCallback((e) => {
-    const tag = e.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  const handleKeyDown = useCallback(
+    (e) => {
+      const tag = e.target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
 
-    if (e.key === 'h' || e.key === 'H') {
-      setShowPanel(v => !v);
-    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      undo();
-    } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
-      e.preventDefault();
-      redo();
-    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
-      e.preventDefault();
-      handleReplicate();
-    } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      const api = canvasApiRef.current;
-      if (!api) return;
-      const ids = api.selectedIds ?? [];
-      if (ids.length > 0) {
+      if (e.key === "h" || e.key === "H") {
+        setShowPanel((v) => !v);
+      } else if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "z"
+      ) {
         e.preventDefault();
-        saveHistory(elements);
-        ids.length === 1 ? deleteElement(ids[0]) : deleteElementsBulk(ids);
-        api.setSelectedIds([]);
-        api.setSelectedId(null);
+        undo();
+      } else if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key.toLowerCase() === "y" ||
+          (e.shiftKey && e.key.toLowerCase() === "z"))
+      ) {
+        e.preventDefault();
+        redo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        handleReplicate();
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        const api = canvasApiRef.current;
+        if (!api) return;
+        const ids = api.selectedIds ?? [];
+        if (ids.length > 0) {
+          e.preventDefault();
+          saveHistory(elements);
+          ids.length === 1 ? deleteElement(ids[0]) : deleteElementsBulk(ids);
+          api.setSelectedIds([]);
+          api.setSelectedId(null);
+        }
       }
-    }
-  }, [undo, redo, elements, saveHistory, deleteElement, deleteElementsBulk, handleReplicate]);
+    },
+    [
+      undo,
+      redo,
+      elements,
+      saveHistory,
+      deleteElement,
+      deleteElementsBulk,
+      handleReplicate,
+    ],
+  );
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
   // Derive selected element for the Properties Panel
-  const selectedElement = selectedId ? elements.find(e => e.id === selectedId) : null;
+  const selectedElement = selectedId
+    ? elements.find((e) => e.id === selectedId)
+    : null;
 
   return (
     <div className="w-screen h-screen overflow-hidden relative bg-surface">
       {/* Scanline Overlay */}
-      <div className="absolute inset-0 pointer-events-none z-40 mix-blend-overlay opacity-50" style={{
-        backgroundImage: 'linear-gradient(transparent 50%, rgba(0, 0, 0, 0.4) 50%)',
-        backgroundSize: '100% 4px'
-      }} />
+      <div
+        className="absolute inset-0 pointer-events-none z-40 mix-blend-overlay opacity-50"
+        style={{
+          backgroundImage:
+            "linear-gradient(transparent 50%, rgba(0, 0, 0, 0.4) 50%)",
+          backgroundSize: "100% 4px",
+        }}
+      />
 
       {/* Purge Modal */}
       {showPurgeModal && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto select-none">
           <div className="panel-brutal p-8 flex flex-col items-center gap-6 border-2 !border-[#FF00FF]">
-            <h2 className="text-[#FF00FF] font-mono text-xl tracking-widest uppercase font-bold animate-pulse">Warning: Permanent Architecture Delete?</h2>
+            <h2 className="text-[#FF00FF] font-mono text-xl tracking-widest uppercase font-bold animate-pulse">
+              Warning: Permanent Architecture Delete?
+            </h2>
             <div className="flex gap-8 mt-4">
-              <button className="btn-brutal px-8 py-3 text-neon-green hover:bg-neon-green/20" onClick={() => setShowPurgeModal(false)}>
+              <button
+                className="btn-brutal px-8 py-3 text-neon-green hover:bg-neon-green/20"
+                onClick={() => setShowPurgeModal(false)}
+              >
                 [NO] ABORT
               </button>
-              <button className="btn-brutal px-8 py-3 text-[#FF00FF] !border-[#FF00FF] hover:bg-[#FF00FF]/20" onClick={() => {
-                stateActions.wipeCanvas();
-                setShowPurgeModal(false);
-              }}>
+              <button
+                className="btn-brutal px-8 py-3 text-[#FF00FF] !border-[#FF00FF] hover:bg-[#FF00FF]/20"
+                onClick={() => {
+                  stateActions.wipeCanvas();
+                  setShowPurgeModal(false);
+                }}
+              >
                 [YES] PURGE
               </button>
             </div>
@@ -219,7 +279,10 @@ function App() {
 
       <Toolbar
         currentTool={currentTool}
-        setCurrentTool={(t) => { canvasApiRef.current?.setCurrentTool(t); setCurrentTool(t); }}
+        setCurrentTool={(t) => {
+          canvasApiRef.current?.setCurrentTool(t);
+          setCurrentTool(t);
+        }}
         undo={undo}
         redo={redo}
         canUndo={canUndo}
@@ -237,8 +300,14 @@ function App() {
         updateElementsBulk={updateElementsBulk}
         addElement={addElement}
         saveHistory={saveHistory}
-        bringToFront={(id) => { saveHistory(elements); bringToFront(id); }}
-        sendToBack={(id) => { saveHistory(elements); sendToBack(id); }}
+        bringToFront={(id) => {
+          saveHistory(elements);
+          bringToFront(id);
+        }}
+        sendToBack={(id) => {
+          saveHistory(elements);
+          sendToBack(id);
+        }}
         deleteElement={(id) => {
           saveHistory(elements);
           const ids = canvasApiRef.current?.selectedIds ?? [];
@@ -248,9 +317,15 @@ function App() {
           canvasApiRef.current?.setSelectedId(null);
         }}
         currentColor={currentColor}
-        setCurrentColor={(c) => { canvasApiRef.current?.setCurrentColor(c); setCurrentColor(c); }}
+        setCurrentColor={(c) => {
+          canvasApiRef.current?.setCurrentColor(c);
+          setCurrentColor(c);
+        }}
         currentStrokeWidth={currentStrokeWidth}
-        setCurrentStrokeWidth={(s) => { canvasApiRef.current?.setCurrentStrokeWidth(s); setCurrentStrokeWidth(s); }}
+        setCurrentStrokeWidth={(s) => {
+          canvasApiRef.current?.setCurrentStrokeWidth(s);
+          setCurrentStrokeWidth(s);
+        }}
       />
 
       {/* Bottom Left: HUD & System Operations */}
@@ -259,10 +334,13 @@ function App() {
           {/* HUD TOAST NOTIFICATION */}
           {shareMsg && (
             <div className="panel-brutal !border-neon-cyan !bg-surface text-neon-cyan px-3 py-2 text-[10px] font-mono font-bold tracking-tighter animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <span className="mr-2">»</span>{shareMsg.includes('LINK COPIED') ? 'LINK COPIED TO CLIPBOARD' : shareMsg}
+              <span className="mr-2">»</span>
+              {shareMsg.includes("LINK COPIED")
+                ? "LINK COPIED TO CLIPBOARD"
+                : shareMsg}
             </div>
           )}
-          
+
           <StatusBar
             connected={connected}
             elementCount={elements.length}
@@ -272,7 +350,7 @@ function App() {
             myCallsign={myCallsign}
           />
         </div>
-        
+
         {/* SYSTEM OPERATIONS */}
         <div className="panel-brutal !p-1 flex gap-[6.5px] border-b-4 !border-b-[#FF00FF]">
           <button
@@ -281,7 +359,9 @@ function App() {
             onClick={handleShare}
           >
             <span className="text-base leading-none">↗</span>
-            <span className="text-[9px] uppercase tracking-widest opacity-70">Share</span>
+            <span className="text-[9px] uppercase tracking-widest opacity-70">
+              Share
+            </span>
           </button>
           <button
             title="Export PNG"
@@ -289,7 +369,9 @@ function App() {
             onClick={handleExportPng}
           >
             <span className="text-base leading-none">⤓</span>
-            <span className="text-[9px] uppercase tracking-widest opacity-70">Export</span>
+            <span className="text-[9px] uppercase tracking-widest opacity-70">
+              Export
+            </span>
           </button>
           <button
             title="Wipe Canvas"
@@ -297,7 +379,9 @@ function App() {
             onClick={() => setShowPurgeModal(true)}
           >
             <span className="text-base leading-none font-bold">☠</span>
-            <span className="text-[9px] uppercase tracking-widest opacity-70">Purge</span>
+            <span className="text-[9px] uppercase tracking-widest opacity-70">
+              Purge
+            </span>
           </button>
         </div>
       </div>
