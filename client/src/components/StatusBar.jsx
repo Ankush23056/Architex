@@ -1,28 +1,10 @@
-export function StatusBar({
-  connected,
-  elementCount,
-  selectedId,
-  selectedCount,
-  showPanelHint,
-  myCallsign,
-}) {
+export function StatusBar({ connected, elementCount, selectedId, selectedCount, showPanelHint, myCallsign }) {
   return (
-    <div
-      className="p-3 border border-border-brutal flex flex-col gap-1 pointer-events-none select-none"
-      style={{
-        background: "rgba(10,10,10,0.85)",
-        backdropFilter: "blur(8px)",
-        minWidth: "220px",
-      }}
-    >
+    <div className="p-3 border border-border-brutal flex flex-col gap-1 pointer-events-none select-none" style={{ background: 'rgba(10,10,10,0.85)', backdropFilter: 'blur(8px)', minWidth: '220px' }}>
+
       {/* Telemetry Row 1 */}
       <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
-        <span>
-          MOUSE:{" "}
-          <span id="mouse-coords" className="text-neon-cyan">
-            X: 0 Y: 0
-          </span>
-        </span>
+        <span>MOUSE: <span id="mouse-coords" className="text-neon-cyan">X: 0 Y: 0</span></span>
         <span className="text-[#BF00FF]">⊞ 20px</span>
       </div>
 
@@ -35,22 +17,16 @@ export function StatusBar({
       {/* Telemetry Row 3 */}
       <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
         <span>SYNC:</span>
-        <span
-          className={
-            connected
-              ? "text-neon-green animate-pulse-neon"
-              : "text-red-500 font-bold"
-          }
-        >
-          {connected ? "ONLINE" : "DISCONNECTED"}
+        <span className={connected ? 'text-neon-green animate-pulse-neon' : 'text-red-500 font-bold'}>
+          {connected ? 'ONLINE' : 'DISCONNECTED'}
         </span>
       </div>
 
       {/* Telemetry Row 4 */}
       <div className="flex items-center justify-between text-[10px] font-mono opacity-80">
-        <span>AGENT:</span>
+        <span>YOU ARE AGENT: </span>
         <span className="text-[#39FF14] font-bold">
-          {myCallsign ? myCallsign : "ASSIGNING..."}
+          {myCallsign ? myCallsign : 'ASSIGNING...'}
         </span>
       </div>
 
